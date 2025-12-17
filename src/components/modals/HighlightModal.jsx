@@ -63,7 +63,19 @@ const HighlightModal = ({ isOpen, onClose, activeBaby, records, timerStates }) =
                 // Format the description based on activity type
                 if (activity.type === 'duration') {
                     // Use the recorded duration for the description (H/M)
-                    const durationMs = lastRecord.duration || (new Date(lastRecord.endTime).getTime() - new Date(lastRecord.startTime).getTime());
+                    // Safely calculate duration: prefer duration field, fallback to endTime - startTime if endTime exists
+                    let durationMs = lastRecord.duration;
+                    if (!durationMs && lastRecord.endTime) {
+                        const start = new Date(lastRecord.startTime).getTime();
+                        const end = new Date(lastRecord.endTime).getTime();
+                        if (!isNaN(start) && !isNaN(end)) {
+                            durationMs = end - start;
+                        }
+                    }
+                    // Fallback to 0 if duration cannot be calculated
+                    if (!durationMs || isNaN(durationMs)) {
+                        durationMs = 0;
+                    }
                     lastRecordDescription = `持续 ${formatDurationChinese(durationMs)}`;
                 } else if (activity.type === 'value') {
                     lastRecordDescription = `${lastRecord.value} ${activity.unit}`;

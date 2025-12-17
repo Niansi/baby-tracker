@@ -127,7 +127,7 @@ const App = () => {
               }, INACTIVITY_TIME);
           }
       }
-  }, [activeTab, showHighlightModal, activeBaby, INACTIVITY_TIME, hasHighlightRecords]);
+  }, [activeTab, showHighlightModal, activeBaby, hasHighlightRecords]);
 
 
   // Effect to manage global interaction listeners

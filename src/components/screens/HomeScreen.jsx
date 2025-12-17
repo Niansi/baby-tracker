@@ -249,18 +249,22 @@ const HomeScreen = ({
   const saveValueRecord = () => {
     if (!activeActivity) return;
 
+    const startTime = new Date();
     const record = {
       type: activeActivity.type,
       activityTypeId: activeActivity.id,
       value: recordValue,
       unit: activeActivity.unit,
       name: activeActivity.name,
-      startTime: new Date().toISOString(),
+      startTime: startTime.toISOString(),
     };
     
-    // For non-timer duration types, calculate duration from value (minutes)
+    // For non-timer duration types, calculate duration from value (minutes) and set endTime
     if (activeActivity.type === 'duration' && !activeActivity.isTimer) {
         record.duration = recordValue * 60000;
+        // Calculate endTime based on startTime + duration
+        const endTime = new Date(startTime.getTime() + record.duration);
+        record.endTime = endTime.toISOString();
     }
 
     onAddRecord(record);
