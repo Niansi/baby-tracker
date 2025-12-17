@@ -6,15 +6,15 @@ import { formatTime } from '../../utils/dateUtils';
 import { formatDuration } from '../../utils/formatUtils';
 
 // 4. Records Screen (Simplified logic to use generic activity data)
-const RecordsScreen = ({ records, onUpdateRecord, onDeleteRecord, activeBaby }) => {
+const RecordsScreen = ({ records, onUpdateRecord, onDeleteRecord, activeBaby, activeBabyActivities }) => {
   const [editingRecord, setEditingRecord] = useState(null);
   const [editValue, setEditValue] = useState(0); 
   
   // Filter and enrich records
-  const activityMap = useMemo(() => activeBaby.activityTypes.reduce((acc, curr) => {
+  const activityMap = useMemo(() => activeBabyActivities.reduce((acc, curr) => {
       acc[curr.id] = curr;
       return acc;
-  }, {}), [activeBaby.activityTypes]);
+  }, {}), [activeBabyActivities]);
   
   const activeBabyRecords = records
     .filter(r => r.babyId === activeBaby.id)
@@ -60,8 +60,8 @@ const RecordsScreen = ({ records, onUpdateRecord, onDeleteRecord, activeBaby }) 
     <div className="pt-14 pb-24 px-5 h-full flex flex-col animate-fade-in overflow-hidden">
       {/* Header */}
       <div className="flex justify-between items-center mb-6 shrink-0">
-        <h1 className="text-xl font-bold text-gray-900">{activeBaby.name} 的记录</h1>
-        <div className="text-xs text-gray-500 font-medium">{sortedRecords.length} 条记录</div>
+        <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900">{activeBaby.name} 的记录</h1>
+        <div className="text-xs md:text-sm text-gray-500 font-medium">{sortedRecords.length} 条记录</div>
       </div>
 
       {/* Timeline List */}

@@ -3,11 +3,11 @@ import { formatDurationChinese, formatElapsedChineseHMS } from '../../utils/form
 import { getLastRecord } from '../../utils/recordUtils';
 
 // New Highlight Modal Component - Full Screen Poster Design
-const HighlightModal = ({ isOpen, onClose, activeBaby, records, timerStates }) => {
+const HighlightModal = ({ isOpen, onClose, activeBaby, activeBabyActivities, records, timerStates }) => {
     // 1. Filter highlighted activities (max 3)
     const highlightedActivities = useMemo(() => 
-        (activeBaby.activityTypes || []).filter(a => a.isHighlight).slice(0, 3), 
-        [activeBaby.activityTypes]
+        (activeBabyActivities || []).filter(a => a.isHighlight).slice(0, 3), 
+        [activeBabyActivities]
     );
 
     // 2. State for re-rendering elapsed time

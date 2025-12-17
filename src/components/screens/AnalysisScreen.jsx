@@ -1,12 +1,12 @@
 import React from 'react';
 
 // 5. Analysis Screen remains simple for now
-const AnalysisScreen = ({ activeBaby }) => {
+const AnalysisScreen = ({ activeBaby, activeBabyActivities }) => {
     // Note: Analysis needs significant refactoring to handle dynamic activity types
     return (
         <div className="pt-14 pb-24 px-5 animate-fade-in h-full overflow-y-auto no-scrollbar">
            <div className="text-center mb-6">
-              <h1 className="text-2xl font-bold text-gray-800">📊 数据分析</h1>
+              <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-gray-800">📊 数据分析</h1>
            </div>
            <div className="bg-white rounded-3xl p-6 shadow-md border border-gray-100">
               <h3 className="font-bold text-gray-700 mb-4">功能正在升级...</h3>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import HomeScreen from './components/screens/HomeScreen';
 import RecordsScreen from './components/screens/RecordsScreen';
 import AnalysisScreen from './components/screens/AnalysisScreen';
+import SettingsScreen from './components/screens/SettingsScreen';
 import HighlightModal from './components/modals/HighlightModal';
 import BottomNav from './components/common/BottomNav';
 import { DEFAULT_ACTIVITY_TYPES, generateId } from './constants/activityTypes';
@@ -13,53 +14,111 @@ const App = () => {
   const initialBabyId = 'default-anne';
   const INACTIVITY_TIME = 10000; // 10 seconds for inactivity trigger
   
-  // Data Migration Helper: Ensures baby objects have activityTypes and that each activity has 'isActive', 'isHighlight', and 'order'
-  const initializeBabies = (savedBabies) => {
-    return savedBabies.map(baby => {
-        let activities = baby.activityTypes || [];
-        if (activities.length === 0) {
-            activities = DEFAULT_ACTIVITY_TYPES;
-        } else {
-            // Migration check: Ensure all activities have the new isActive/isHighlight/order property
-            activities = activities.map((a, index) => ({
-                ...a,
-                isActive: a.isActive !== undefined ? a.isActive : true,
-                isHighlight: a.isHighlight !== undefined ? a.isHighlight : false,
-                order: a.order !== undefined ? a.order : index
-            }));
-            // Sort by order to ensure correct display
-            activities.sort((a, b) => (a.order || 0) - (b.order || 0));
+  // Data Migration Helper: Migrate from old structure (activityTypes) to new structure (global activities + activityConfigs)
+  const migrateDataStructure = (savedBabies, savedActivities) => {
+    // Check if migration is needed (old structure has activityTypes, new structure has activityConfigs)
+    const needsMigration = savedBabies.some(baby => baby.activityTypes && !baby.activityConfigs);
+    
+    if (!needsMigration) {
+      return { babies: savedBabies, activities: savedActivities || DEFAULT_ACTIVITY_TYPES };
+    }
+    
+    // Extract all unique activities from all babies to create global activities
+    const allActivitiesMap = new Map();
+    
+    savedBabies.forEach(baby => {
+      const activities = baby.activityTypes || [];
+      activities.forEach(activity => {
+        if (!allActivitiesMap.has(activity.id)) {
+          // Extract fixed properties only
+          allActivitiesMap.set(activity.id, {
+            id: activity.id,
+            name: activity.name,
+            type: activity.type,
+            unit: activity.unit,
+            icon: activity.icon,
+            color: activity.color,
+            isTimer: activity.isTimer || false
+          });
         }
-        return { ...baby, activityTypes: activities };
+      });
     });
+    
+    // If no activities found, use defaults
+    const globalActivities = allActivitiesMap.size > 0 
+      ? Array.from(allActivitiesMap.values())
+      : DEFAULT_ACTIVITY_TYPES;
+    
+    // Convert each baby's activityTypes to activityConfigs
+    const migratedBabies = savedBabies.map(baby => {
+      const activities = baby.activityTypes || [];
+      const activityConfigs = activities.map((activity, index) => ({
+        activityId: activity.id,
+        isActive: activity.isActive !== undefined ? activity.isActive : true,
+        isHighlight: activity.isHighlight !== undefined ? activity.isHighlight : false,
+        order: activity.order !== undefined ? activity.order : index
+      }));
+      
+      // Sort by order
+      activityConfigs.sort((a, b) => (a.order || 0) - (b.order || 0));
+      
+      // Remove activityTypes and add activityConfigs
+      const { activityTypes, ...babyWithoutActivities } = baby;
+      return { ...babyWithoutActivities, activityConfigs };
+    });
+    
+    return { babies: migratedBabies, activities: globalActivities };
   };
-
-  const initialBabies = useMemo(() => {
-    const saved = localStorage.getItem('baby_babies');
+  
+  // Initialize babies with migration
+  const { initialBabies, initialGlobalActivities } = useMemo(() => {
+    const savedBabies = localStorage.getItem('baby_babies');
+    const savedActivities = localStorage.getItem('baby_activities');
+    
+    let parsedBabies = [];
+    if (savedBabies) {
+      try {
+        parsedBabies = JSON.parse(savedBabies);
+      } catch (e) {
+        parsedBabies = [];
+      }
+    }
+    
+    let parsedActivities = null;
+    if (savedActivities) {
+      try {
+        parsedActivities = JSON.parse(savedActivities);
+      } catch (e) {
+        parsedActivities = null;
+      }
+    }
+    
     const defaultBaby = [{ 
       id: initialBabyId, 
-      // 默认名称改为 "点点 (默认本)"
       name: '点点 (默认本)', 
       startDate: formatDateKey(new Date(Date.now() - 108 * 24 * 60 * 60 * 1000)),
-      icon: '👶', // 默认宝贝仍使用宝宝图标
+      icon: '👶',
       color: 'bg-orange-100',
-      activityTypes: DEFAULT_ACTIVITY_TYPES 
+      activityConfigs: DEFAULT_ACTIVITY_TYPES.map((activity, index) => ({
+        activityId: activity.id,
+        isActive: true,
+        isHighlight: activity.id === 'a-sleep', // Default highlight for sleep
+        order: index
+      }))
     }];
     
-    if (saved) {
-        try {
-            const parsed = JSON.parse(saved);
-            return parsed.length > 0 ? initializeBabies(parsed) : defaultBaby;
-        } catch (e) {
-            return defaultBaby;
-        }
+    if (parsedBabies.length === 0) {
+      return { initialBabies: defaultBaby, initialGlobalActivities: DEFAULT_ACTIVITY_TYPES };
     }
-    return defaultBaby;
+    
+    const { babies, activities } = migrateDataStructure(parsedBabies, parsedActivities);
+    return { initialBabies: babies, initialGlobalActivities: activities };
   }, [initialBabyId]);
 
   // States
   const [activeTab, setActiveTab] = useState('home');
   const [babies, setBabies] = useState(initialBabies);
+  const [activities, setActivities] = useState(initialGlobalActivities); // Global activities library
   const [activeBabyId, setActiveBabyId] = useState(() => {
     const saved = localStorage.getItem('baby_active_baby_id');
     const validId = saved && initialBabies.some(b => b.id === saved) ? saved : initialBabyId;
@@ -83,9 +142,34 @@ const App = () => {
 
   // Get active baby object
   const activeBaby = useMemo(() => babies.find(b => b.id === activeBabyId) || babies[0], [babies, activeBabyId]);
+  
+  // Helper function: Merge global activities with baby's activity configs
+  const getBabyActivities = useCallback((baby) => {
+    if (!baby || !baby.activityConfigs) return [];
+    
+    const activityMap = new Map(activities.map(a => [a.id, a]));
+    
+    return baby.activityConfigs
+      .map(config => {
+        const activity = activityMap.get(config.activityId);
+        if (!activity) return null;
+        
+        return {
+          ...activity, // Fixed properties from global activities
+          ...config,   // Baby-specific properties (isActive, isHighlight, order)
+          id: activity.id // Ensure id is from activity
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+  }, [activities]);
+  
+  // Get active baby's merged activities
+  const activeBabyActivities = useMemo(() => getBabyActivities(activeBaby), [activeBaby, getBabyActivities]);
 
   // --- Persistence Effects ---
   useEffect(() => { localStorage.setItem('baby_babies', JSON.stringify(babies)); }, [babies]);
+  useEffect(() => { localStorage.setItem('baby_activities', JSON.stringify(activities)); }, [activities]);
   useEffect(() => { localStorage.setItem('baby_active_baby_id', activeBabyId); }, [activeBabyId]);
   useEffect(() => { localStorage.setItem('baby_records', JSON.stringify(records)); }, [records]);
   useEffect(() => { localStorage.setItem('baby_timer_states', JSON.stringify(timerStates)); }, [timerStates]);
@@ -93,7 +177,7 @@ const App = () => {
   // --- Inactivity Timer Logic ---
   // Helper to check if there are any records for highlighted activities
   const hasHighlightRecords = useCallback(() => {
-      const highlightedActivities = (activeBaby.activityTypes || []).filter(a => a.isHighlight);
+      const highlightedActivities = activeBabyActivities.filter(a => a.isHighlight);
       if (highlightedActivities.length === 0) return false;
       
       const activeTimers = timerStates[activeBaby.id] || {};
@@ -109,7 +193,7 @@ const App = () => {
           const lastRecord = getLastRecord(records, activeBaby.id, activity.id);
           return !!lastRecord;
       });
-  }, [activeBaby, records, timerStates]);
+  }, [activeBabyActivities, activeBaby.id, records, timerStates]);
 
   const resetInactivityTimer = useCallback(() => {
       // Clear existing timer
@@ -119,7 +203,7 @@ const App = () => {
       
       // If on 'home' tab and highlight modal is not already visible
       if (activeTab === 'home' && !showHighlightModal) {
-          const hasHighlights = activeBaby.activityTypes?.some(a => a.isHighlight);
+          const hasHighlights = activeBabyActivities.some(a => a.isHighlight);
           // Only trigger timer if there are records (not just highlights)
           if (hasHighlights && hasHighlightRecords()) {
               inactivityTimerRef.current = setTimeout(() => {
@@ -127,7 +211,7 @@ const App = () => {
               }, INACTIVITY_TIME);
           }
       }
-  }, [activeTab, showHighlightModal, activeBaby, hasHighlightRecords]);
+  }, [activeTab, showHighlightModal, activeBabyActivities, hasHighlightRecords]);
 
 
   // Effect to manage global interaction listeners
@@ -164,11 +248,19 @@ const App = () => {
   // --- Baby/Book Actions ---
 
   const addBaby = (newBaby) => {
+    // New babies get all global activities as configs
+    const activityConfigs = activities.map((activity, index) => ({
+      activityId: activity.id,
+      isActive: true,
+      isHighlight: false,
+      order: index
+    }));
+    
     const babyWithId = { 
         ...newBaby, 
         id: generateId(), 
-        activityTypes: DEFAULT_ACTIVITY_TYPES 
-    }; // New babies get default activities
+        activityConfigs
+    };
     setBabies(prev => [...prev, babyWithId]);
     setActiveBabyId(babyWithId.id); 
   };
@@ -200,10 +292,57 @@ const App = () => {
       }
   }
   
-  const updateBabyActivities = (newActivities) => {
+  // Update baby's activity configs
+  const updateBabyActivityConfigs = (babyId, newConfigs) => {
       setBabies(prev => prev.map(b => 
-          b.id === activeBabyId ? { ...b, activityTypes: newActivities } : b
+          b.id === babyId ? { ...b, activityConfigs: newConfigs } : b
       ));
+  };
+  
+  // Global activities management
+  const addActivity = (newActivity) => {
+    const activityWithId = {
+      ...newActivity,
+      id: generateId()
+    };
+    setActivities(prev => [...prev, activityWithId]);
+    
+    // Add to all babies' configs by default
+    setBabies(prev => prev.map(baby => {
+      const maxOrder = baby.activityConfigs.length > 0
+        ? Math.max(...baby.activityConfigs.map(c => c.order || 0))
+        : -1;
+      return {
+        ...baby,
+        activityConfigs: [
+          ...baby.activityConfigs,
+          {
+            activityId: activityWithId.id,
+            isActive: true,
+            isHighlight: false,
+            order: maxOrder + 1
+          }
+        ]
+      };
+    }));
+  };
+  
+  const updateActivity = (id, updates) => {
+    setActivities(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
+  };
+  
+  const deleteActivity = (id) => {
+    // Check if any baby is using this activity
+    const isUsed = babies.some(baby => 
+      baby.activityConfigs?.some(config => config.activityId === id)
+    );
+    
+    if (isUsed) {
+      alert('无法删除：有本子正在使用此活动。请先从所有本子中移除该活动。');
+      return;
+    }
+    
+    setActivities(prev => prev.filter(a => a.id !== id));
   };
 
   // --- Record Actions ---
@@ -234,7 +373,7 @@ const App = () => {
       
       const endTime = new Date();
       const startTime = new Date(current.startTime);
-      const activity = activeBaby.activityTypes.find(a => a.id === activityId);
+      const activity = activeBabyActivities.find(a => a.id === activityId);
       
       // 1. Record the event
       const record = {
@@ -260,30 +399,19 @@ const App = () => {
   };
 
   return (
-    <div className="bg-gray-100 min-h-screen flex justify-center items-start pt-0 sm:pt-10 font-sans selection:bg-blue-100">
-      <div className="w-full sm:w-[390px] h-[100vh] sm:h-[844px] bg-[#F7F8FA] sm:rounded-[40px] shadow-2xl relative overflow-hidden flex flex-col border-4 border-gray-900/5 sm:border-gray-900 sm:ring-4 ring-gray-200">
-        {/* Mock phone elements */}
-        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 h-[30px] w-[120px] bg-black rounded-b-[18px] z-50 hidden sm:block pointer-events-none"></div>
-        <div className="absolute top-1 right-5 text-[10px] font-bold z-50 hidden sm:block pointer-events-none text-gray-800">
-           <div className="flex gap-1"><span>5G</span><div className="w-4 h-2.5 bg-gray-800 border border-gray-600 rounded-sm"></div></div>
-        </div>
-        <div className="absolute top-1 left-6 text-[12px] font-bold z-50 hidden sm:block pointer-events-none text-gray-800">09:41</div>
+    <div className="bg-gray-100 min-h-screen flex justify-center items-start font-sans selection:bg-blue-100">
+      <div className="w-full h-[100vh] bg-[#F7F8FA] relative overflow-hidden flex flex-col md:max-w-[600px] lg:max-w-[800px] md:rounded-3xl md:shadow-xl md:mt-8 md:mb-8 md:h-auto md:min-h-[calc(100vh-4rem)]">
 
         <div className="flex-1 overflow-hidden relative">
           {activeTab === 'home' && (
             <HomeScreen 
                 activeBaby={activeBaby}
+                activeBabyActivities={activeBabyActivities}
                 timerStates={timerStates}
                 setTimerStates={setTimerStates}
                 onAddRecord={addRecord}
                 onStopTimer={stopTimer}
-                onUpdateBabyActivities={updateBabyActivities}
-                babies={babies}
-                setActiveBabyId={setActiveBabyId}
-                onAddBaby={addBaby}
-                onUpdateBaby={updateBaby}
-                onDeleteBaby={deleteBaby}
-                setShowHighlightModal={setShowHighlightModal} // Pass setter down
+                setShowHighlightModal={setShowHighlightModal}
             />
           )}
           {activeTab === 'records' && (
@@ -292,9 +420,31 @@ const App = () => {
                 onUpdateRecord={updateRecord} 
                 onDeleteRecord={deleteRecord} 
                 activeBaby={activeBaby}
+                activeBabyActivities={activeBabyActivities}
             />
           )}
-          {activeTab === 'analysis' && <AnalysisScreen activeBaby={activeBaby} />}
+          {activeTab === 'analysis' && (
+            <AnalysisScreen 
+                activeBaby={activeBaby}
+                activeBabyActivities={activeBabyActivities}
+            />
+          )}
+          {activeTab === 'settings' && (
+            <SettingsScreen
+                babies={babies}
+                activities={activities}
+                activeBabyId={activeBabyId}
+                setActiveBabyId={setActiveBabyId}
+                onAddBaby={addBaby}
+                onUpdateBaby={updateBaby}
+                onDeleteBaby={deleteBaby}
+                onUpdateBabyActivityConfigs={updateBabyActivityConfigs}
+                onAddActivity={addActivity}
+                onUpdateActivity={updateActivity}
+                onDeleteActivity={deleteActivity}
+                getBabyActivities={getBabyActivities}
+            />
+          )}
         </div>
 
         <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -305,8 +455,9 @@ const App = () => {
         isOpen={showHighlightModal}
         onClose={() => setShowHighlightModal(false)}
         activeBaby={activeBaby}
+        activeBabyActivities={activeBabyActivities}
         records={records}
-        timerStates={timerStates} // <-- Pass timerStates for real-time check
+        timerStates={timerStates}
       />
       
       <style>{`
@@ -323,6 +474,51 @@ const App = () => {
         }
         .animate-magic-move { 
             animation: magic-move 0.35s cubic-bezier(0.25, 0.8, 0.5, 1) forwards; 
+        }
+
+        /* Icon Bounce Animation */
+        @keyframes icon-bounce {
+            0% { transform: translateY(0) scale(1); }
+            30% { transform: translateY(-12px) scale(1.1); }
+            50% { transform: translateY(-8px) scale(1.05); }
+            70% { transform: translateY(-4px) scale(1.02); }
+            100% { transform: translateY(0) scale(1); }
+        }
+        .animate-icon-bounce {
+            animation: icon-bounce 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+        }
+
+        /* Flyout Appear Animation - shows the +xx text */
+        @keyframes flyout-appear {
+            0% { 
+                opacity: 0; 
+                transform: translate(-50%, 10px) scale(0.8); 
+            }
+            50% { 
+                transform: translate(-50%, -5px) scale(1.1); 
+            }
+            100% { 
+                opacity: 1; 
+                transform: translate(-50%, 0) scale(1); 
+            }
+        }
+        .animate-flyout-appear {
+            animation: flyout-appear 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        /* Flyout Up Animation - flies up and fades */
+        @keyframes flyout-up {
+            0% { 
+                opacity: 1; 
+                transform: translate(-50%, 0) scale(1); 
+            }
+            100% { 
+                opacity: 0; 
+                transform: translate(-50%, -30px) scale(0.8); 
+            }
+        }
+        .animate-flyout-up {
+            animation: flyout-up 0.3s ease-out forwards;
         }
 
         /* Basic Tailwind Color Mappings for dynamic buttons */
@@ -362,6 +558,26 @@ const App = () => {
         .bg-gray-50 { background-color: #F9FAFB; }
         .bg-red-50 { background-color: #FEF2F2; }
         .bg-green-50 { background-color: #F0FFF4; }
+        
+        .bg-blue-100 { background-color: #DBEAFE; }
+        .bg-indigo-100 { background-color: #E0E7FF; }
+        .bg-purple-100 { background-color: #EDE9FE; }
+        .bg-amber-100 { background-color: #FEF3C7; }
+        .bg-yellow-100 { background-color: #FEF9C3; }
+        .bg-gray-100 { background-color: #F3F4F6; }
+        .bg-red-100 { background-color: #FEE2E2; }
+        .bg-green-100 { background-color: #D1FAE5; }
+        
+        .bg-blue-200 { background-color: #BFDBFE; }
+        .bg-indigo-200 { background-color: #C7D2FE; }
+        .bg-purple-200 { background-color: #DDD6FE; }
+        .bg-amber-200 { background-color: #FDE68A; }
+        .bg-yellow-200 { background-color: #FEF08A; }
+        .bg-gray-200 { background-color: #E5E7EB; }
+        .bg-red-200 { background-color: #FECACA; }
+        .bg-green-200 { background-color: #A7F3D0; }
+        .bg-pink-200 { background-color: #FBCFE8; }
+        .bg-orange-200 { background-color: #FED7AA; }
 
 
       `}</style>
