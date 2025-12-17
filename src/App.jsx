@@ -31,12 +31,12 @@ const CUSTOM_COLORS = [
 ]; // Use darker colors for buttons
 
 const DEFAULT_ACTIVITY_TYPES = [
-    { id: 'a-feeding-bottle', name: '奶瓶喂养', type: 'value', unit: 'ml', icon: '🍼', color: 'bg-blue-600', isTimer: false, isActive: true, isHighlight: false },
-    { id: 'a-feeding-breast', name: '母乳亲喂', type: 'duration', unit: '分钟', icon: '🤱', color: 'bg-indigo-600', isTimer: true, isActive: true, isHighlight: false },
-    { id: 'a-sleep', name: '睡觉', type: 'duration', unit: '分钟', icon: '🌙', color: 'bg-purple-600', isTimer: true, isActive: true, isHighlight: true }, // Default HL
-    { id: 'a-poop', name: '臭臭', type: 'count', unit: '次', icon: '💩', color: 'bg-amber-600', isTimer: false, isActive: true, isHighlight: false },
-    { id: 'a-diaper', name: '换尿片', type: 'count', unit: '次', icon: '🧷', color: 'bg-yellow-600', isTimer: false, isActive: true, isHighlight: false },
-    { id: 'a-smoke', name: '抽烟', type: 'count', unit: '次', icon: '🚬', color: 'bg-gray-600', isTimer: false, isActive: true, isHighlight: false },
+    { id: 'a-feeding-bottle', name: '奶瓶喂养', type: 'value', unit: 'ml', icon: '🍼', color: 'bg-blue-600', isTimer: false, isActive: true, isHighlight: false, order: 0 },
+    { id: 'a-feeding-breast', name: '母乳亲喂', type: 'duration', unit: '分钟', icon: '🤱', color: 'bg-indigo-600', isTimer: true, isActive: true, isHighlight: false, order: 1 },
+    { id: 'a-sleep', name: '睡觉', type: 'duration', unit: '分钟', icon: '🌙', color: 'bg-purple-600', isTimer: true, isActive: true, isHighlight: true, order: 2 }, // Default HL
+    { id: 'a-poop', name: '臭臭', type: 'count', unit: '次', icon: '💩', color: 'bg-amber-600', isTimer: false, isActive: true, isHighlight: false, order: 3 },
+    { id: 'a-diaper', name: '换尿片', type: 'count', unit: '次', icon: '🧷', color: 'bg-yellow-600', isTimer: false, isActive: true, isHighlight: false, order: 4 },
+    { id: 'a-smoke', name: '抽烟', type: 'count', unit: '次', icon: '🚬', color: 'bg-gray-600', isTimer: false, isActive: true, isHighlight: false, order: 5 },
 ];
 
 // Helper to format duration in MS to H:MM:SS
@@ -174,8 +174,8 @@ const Modal = ({ isOpen, onClose, title, children }) => {
   );
 };
 
-// New Highlight Modal Component
-const HighlightModal = ({ isOpen, onClose, activeBaby, records, timerStates }) => { // ADDED timerStates
+// New Highlight Modal Component - Full Screen Poster Design
+const HighlightModal = ({ isOpen, onClose, activeBaby, records, timerStates }) => {
     // 1. Filter highlighted activities (max 3)
     const highlightedActivities = useMemo(() => 
         (activeBaby.activityTypes || []).filter(a => a.isHighlight).slice(0, 3), 
@@ -219,7 +219,15 @@ const HighlightModal = ({ isOpen, onClose, activeBaby, records, timerStates }) =
                 const lastRecord = getLastRecord(records, activeBaby.id, activity.id);
             
                 if (!lastRecord) {
-                    return { activity, elapsedMs: null, lastRecordDescription: '暂无记录', isTiming: false };
+                    // Return object with hasNoRecord flag, but still include it in reminders
+                    return { 
+                        activity, 
+                        elapsedMs: 0, // Use 0 instead of null to ensure it's included
+                        lastRecordDescription: '暂无记录', 
+                        isTiming: false,
+                        hasNoRecord: true,
+                        formattedTime: '暂无记录'
+                    };
                 }
                 
                 displayTimeMs = Date.now() - new Date(lastRecord.startTime).getTime();
@@ -242,65 +250,163 @@ const HighlightModal = ({ isOpen, onClose, activeBaby, records, timerStates }) =
                 elapsedMs: displayTimeMs,
                 lastRecordDescription,
                 isTiming,
+                hasNoRecord: false,
                 // Use H/M/S for running timers, H/M for elapsed time since last record
-                formattedTime: isTiming ? formatElapsedChineseHMS(displayTimeMs) : formatDurationChinese(displayTimeMs) 
+                formattedTime: isTiming ? formatElapsedChineseHMS(displayTimeMs) : formatDurationChinese(displayTimeMs)
             };
-        }).filter(r => r.elapsedMs !== null);
+        });
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [highlightedActivities, records, activeBaby.id, timerStates, tick]); 
 
+    // Handle click to close - close on any click
+    const handleClick = () => {
+        onClose();
+    };
 
-    if (!isOpen || reminders.length === 0) {
-        return (
-             <Modal isOpen={isOpen} onClose={onClose} title="关键提醒 (Highlight)">
-                <div className="text-center text-gray-500 py-10">
-                    <p className="font-bold">✨ 暂无高亮活动 ✨</p>
-                    <p className="text-sm mt-2">请到 **活动类型管理** 中开启 **首页提醒**。</p>
-                </div>
-            </Modal>
-        );
+    if (!isOpen || highlightedActivities.length === 0) {
+        return null;
     }
+    
+    // Ensure all highlighted activities are shown, even if they have no records
+    // The reminders array should already contain all activities (with hasNoRecord flag for those without records)
+
+    // Get high contrast color based on activity color
+    const getHighContrastColor = (colorClass) => {
+        const colorMap = {
+            'blue': '#2563EB',      // blue-600
+            'indigo': '#4F46E5',    // indigo-600
+            'purple': '#7C3AED',    // purple-600
+            'orange': '#D97706',    // orange-600
+            'green': '#059669',     // green-600
+            'red': '#DC2626',       // red-600
+            'yellow': '#CA8A04',    // yellow-600
+            'pink': '#EC4899',      // pink-600
+            'amber': '#D97706',     // amber-600
+        };
+        const colorName = colorClass.replace('text-', '').replace('-600', '');
+        return colorMap[colorName] || '#000000';
+    };
+
+    // Parse time string into structured format
+    const parseTimeDisplay = (formattedTime) => {
+        if (formattedTime === '暂无记录') {
+            return [{ value: '暂无记录', unit: '' }];
+        }
+        const parts = [];
+        const hourMatch = formattedTime.match(/(\d+)小时/);
+        const minuteMatch = formattedTime.match(/(\d+)分钟/);
+        const secondMatch = formattedTime.match(/(\d+)秒/);
+        
+        if (hourMatch) parts.push({ value: hourMatch[1], unit: '小时' });
+        if (minuteMatch) parts.push({ value: minuteMatch[1], unit: '分钟' });
+        if (secondMatch) parts.push({ value: secondMatch[1], unit: '秒' });
+        
+        return parts.length > 0 ? parts : [{ value: formattedTime, unit: '' }];
+    };
+
+    // Use white background for all cases
+    const bgColor = 'bg-white';
+    const textColor = 'text-black';
 
     return (
-        <Modal 
-            isOpen={isOpen} 
-            onClose={onClose} 
-            title="关键提醒 (Highlight)"
+        <div 
+            className="fixed inset-0 z-[200] bg-white flex items-center justify-center p-0 animate-fade-in cursor-pointer"
+            onClick={handleClick}
+            style={{ backgroundColor: '#FFFFFF' }}
         >
-            <div className="flex flex-col space-y-8 min-h-[300px] justify-center items-center">
-                {reminders.map((reminder) => (
-                    <div key={reminder.activity.id} className="w-full text-center p-4 bg-gray-50 rounded-2xl shadow-inner border border-gray-100">
-                        {reminder.isTiming ? (
-                            // 状态: 正在XX，XX时间
-                            <>
-                                <p className="text-xl text-gray-700 font-semibold mb-2">
-                                    正在 <span className={`font-extrabold text-2xl ${reminder.activity.color.replace('bg-', 'text-')}`}>{reminder.activity.name}</span>
-                                </p>
-                                <div className={`text-5xl font-extrabold ${reminder.activity.color.replace('bg-', 'text-')} mb-3 transition-all duration-500`}>
-                                    {reminder.formattedTime}
+            <div className="w-full h-full flex flex-col">
+                {reminders.map((reminder, index) => {
+                    const timeParts = parseTimeDisplay(reminder.formattedTime);
+                    const activityColor = getHighContrastColor(reminder.activity.color.replace('bg-', 'text-'));
+                    const isNoRecord = reminder.hasNoRecord;
+                    const isLast = index === reminders.length - 1;
+                    
+                    return (
+                        <div 
+                            key={reminder.activity.id}
+                            className="w-full flex-1 flex flex-col items-center justify-center"
+                            style={{
+                                minHeight: `${100 / reminders.length}vh`,
+                                paddingTop: index === 0 ? '6vh' : '1vh',
+                                paddingBottom: isLast ? '6vh' : '1vh'
+                            }}
+                        >
+                            {/* Icon and Activity Name in same line */}
+                            <div className="flex items-center justify-center gap-4 sm:gap-6 mb-4 sm:mb-6">
+                                <div 
+                                    className="text-5xl sm:text-6xl"
+                                    style={{ color: activityColor }}
+                                >
+                                    {reminder.activity.icon}
                                 </div>
-                                <p className="text-sm text-gray-500">
-                                    （实时计时中，请在首页结束）
-                                </p>
-                            </>
-                        ) : (
-                            // 状态: 距离上次XX（小字描述）已经过去XX时间（大字）
-                            <>
-                                <p className="text-lg text-gray-700 font-semibold mb-1">
-                                    距离上次 <span className={`font-extrabold text-xl ${reminder.activity.color.replace('bg-', 'text-')}`}>{reminder.activity.name}</span>
-                                </p>
-                                <div className={`text-4xl sm:text-5xl font-extrabold ${reminder.activity.color.replace('bg-', 'text-')} mb-2 transition-all duration-500`}>
-                                    {reminder.formattedTime}
+                                <div 
+                                    className="text-3xl sm:text-5xl font-bold tracking-tight text-black"
+                                >
+                                    {reminder.isTiming ? `正在 ${reminder.activity.name}` : reminder.activity.name}
                                 </div>
-                                <p className="text-sm text-gray-500">
-                                    （{reminder.lastRecordDescription}）已经过去
-                                </p>
-                            </>
-                        )}
-                    </div>
-                ))}
+                            </div>
+
+                            {/* Time Display */}
+                            <div className="text-center">
+                                {isNoRecord ? (
+                                    <div 
+                                        className="text-8xl sm:text-[10rem] font-black leading-none tracking-tighter"
+                                        style={{ 
+                                            color: activityColor,
+                                            fontFamily: 'system-ui, -apple-system, sans-serif',
+                                            fontWeight: 900
+                                        }}
+                                    >
+                                        暂无记录
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-wrap items-baseline justify-center gap-3 sm:gap-5">
+                                        {timeParts.map((part, i) => (
+                                            <div key={i} className="flex items-baseline gap-2 sm:gap-3">
+                                                <span 
+                                                    className="text-8xl sm:text-[10rem] font-black leading-none tracking-tighter"
+                                                    style={{ 
+                                                        color: activityColor,
+                                                        fontFamily: 'system-ui, -apple-system, sans-serif',
+                                                        fontWeight: 900,
+                                                        letterSpacing: '-0.05em'
+                                                    }}
+                                                >
+                                                    {part.value}
+                                                </span>
+                                                {part.unit && (
+                                                    <span 
+                                                        className="text-4xl sm:text-6xl font-bold"
+                                                        style={{ 
+                                                            color: activityColor,
+                                                            letterSpacing: '0.05em'
+                                                        }}
+                                                    >
+                                                        {part.unit}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Description */}
+                            {!isNoRecord && (
+                                <div 
+                                    className="text-xl sm:text-2xl font-medium mt-4 sm:mt-6 opacity-50 text-black"
+                                >
+                                    {reminder.isTiming 
+                                        ? '实时计时中' 
+                                        : `上次：${reminder.lastRecordDescription}`
+                                    }
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
-        </Modal>
+        </div>
     );
 };
 
@@ -458,9 +564,18 @@ const ActivityManagerModal = ({ isOpen, onClose, activeBaby, onUpdateBabyActivit
         let proposedActivities;
 
         if (view === 'add') {
-            proposedActivities = [...activityTypes, { ...newActivity, id: generateId() }];
+            // Add new activity with order set to the end
+            const maxOrder = activityTypes.length > 0 
+                ? Math.max(...activityTypes.map(a => a.order || 0))
+                : -1;
+            proposedActivities = [...activityTypes, { ...newActivity, id: generateId(), order: maxOrder + 1 }];
         } else if (view === 'edit' && editingActivityId) {
-            proposedActivities = activityTypes.map(a => a.id === editingActivityId ? { ...a, ...newActivity } : a);
+            // Preserve order when editing
+            proposedActivities = activityTypes.map(a => 
+                a.id === editingActivityId 
+                    ? { ...a, ...newActivity, order: a.order !== undefined ? a.order : activityTypes.length } 
+                    : a
+            );
         } else {
              return; // Should not happen
         }
@@ -915,15 +1030,115 @@ const HomeScreen = ({
   
   const [activeActivity, setActiveActivity] = useState(null); // The activity being recorded (value type)
   const [recordValue, setRecordValue] = useState(60); 
+  const [draggedIndex, setDraggedIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const longPressTimerRef = useRef(null);
+
+  // Cleanup long press timer on unmount
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+      }
+    };
+  }, []);
 
   const daysOld = calculateDaysOld(activeBaby.startDate);
   const activityTypes = activeBaby.activityTypes || [];
   
-  // Filter activities based on the new isActive flag
-  const activeActivityTypes = activityTypes.filter(a => a.isActive);
+  // Filter activities based on the new isActive flag and sort by order
+  const activeActivityTypes = activityTypes
+    .filter(a => a.isActive)
+    .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+  // Handle drag and drop for activity reordering
+  const handleDragStart = (index) => {
+    setDraggedIndex(index);
+    setIsDragging(true);
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    if (draggedIndex !== null && draggedIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDragEnd = () => {
+    if (draggedIndex !== null && dragOverIndex !== null && draggedIndex !== dragOverIndex) {
+      const newActivities = [...activeActivityTypes];
+      const [removed] = newActivities.splice(draggedIndex, 1);
+      newActivities.splice(dragOverIndex, 0, removed);
+      
+      // Update order for all activities
+      const updatedActivities = newActivities.map((activity, index) => ({
+        ...activity,
+        order: index
+      }));
+      
+      // Update all activities in the baby's activityTypes, preserving inactive ones
+      const allActivities = activityTypes.map(activity => {
+        const updated = updatedActivities.find(a => a.id === activity.id);
+        if (updated) {
+          return updated;
+        }
+        // Keep inactive activities with their original order
+        return activity;
+      });
+      
+      onUpdateBabyActivities(allActivities);
+    }
+    
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+    setIsDragging(false);
+  };
+
+  // Handle long press for mobile drag
+  const handleTouchStart = (e, index) => {
+    longPressTimerRef.current = setTimeout(() => {
+      handleDragStart(index);
+      setIsDragging(true);
+      // Add haptic feedback if available
+      if (navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+      // Prevent default to avoid scrolling
+      e.preventDefault();
+    }, 500); // 500ms long press
+  };
+
+  const handleTouchEnd = (e) => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    if (isDragging) {
+      e.preventDefault();
+      handleDragEnd();
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (isDragging && draggedIndex !== null) {
+      e.preventDefault(); // Prevent scrolling while dragging
+      const touch = e.touches[0];
+      const element = document.elementFromPoint(touch.clientX, touch.clientY);
+      if (element) {
+        const activityElement = element.closest('[data-activity-index]');
+        if (activityElement) {
+          const targetIndex = parseInt(activityElement.getAttribute('data-activity-index'));
+          if (!isNaN(targetIndex) && targetIndex !== draggedIndex) {
+            setDragOverIndex(targetIndex);
+          }
+        }
+      }
+    }
+  };
 
   // Timer Hook for dynamic activities
-  const TimerDisplay = ({ activity }) => {
+  const TimerDisplay = ({ activity, index }) => {
     const { isTiming, elapsedMs } = useTimer(timerStates, setTimerStates, activity.id, activeBaby.id);
     
     // Determine button state and color
@@ -932,73 +1147,109 @@ const HomeScreen = ({
     const textColorClass = activity.color.replace('bg-', 'text-');
     const isDurationTimer = activity.type === 'duration' && activity.isTimer;
 
-    const handleAction = () => {
-        if (activity.type === 'count') {
-            // Quick count action
-            onAddRecord({ 
-                type: 'count', 
-                activityTypeId: activity.id,
-                value: 1,
-                unit: activity.unit,
-                name: activity.name,
-                startTime: new Date().toISOString() 
-            });
-        } else if (activity.type === 'value') {
-            // Open modal for value input
-            setActiveActivity(activity);
-            setRecordValue(activity.unit === 'ml' ? 120 : 60); // Reset default
-            setShowValueModal(true);
-        } else if (isDurationTimer) {
-            // Start/Stop Timer logic
-            if (isTiming) {
-                // Stop timer and record
-                onStopTimer(activity.id, elapsedMs);
-            } else {
-                // Start timer
-                setTimerStates(prev => ({
-                    ...prev,
-                    [activeBaby.id]: {
-                        ...(prev[activeBaby.id] || {}),
-                        [activity.id]: { isTiming: true, startTime: new Date().toISOString() }
-                    }
-                }));
-            }
-        } else if (activity.type === 'duration' && !activity.isTimer) {
-            // Open modal for duration input (like recording a past run/activity without a live timer)
-            setActiveActivity(activity);
-            setRecordValue(30); // Default 30 minutes
-            setShowValueModal(true);
-        }
+    const handleAction = (e) => {
+      // Don't trigger action if we're dragging
+      if (isDragging) {
+        e.preventDefault();
+        return;
+      }
+      
+      if (activity.type === 'count') {
+          // Quick count action
+          onAddRecord({ 
+              type: 'count', 
+              activityTypeId: activity.id,
+              value: 1,
+              unit: activity.unit,
+              name: activity.name,
+              startTime: new Date().toISOString() 
+          });
+      } else if (activity.type === 'value') {
+          // Open modal for value input
+          setActiveActivity(activity);
+          setRecordValue(activity.unit === 'ml' ? 120 : 60); // Reset default
+          setShowValueModal(true);
+      } else if (isDurationTimer) {
+          // Start/Stop Timer logic
+          if (isTiming) {
+              // Stop timer and record
+              onStopTimer(activity.id, elapsedMs);
+          } else {
+              // Start timer
+              setTimerStates(prev => ({
+                  ...prev,
+                  [activeBaby.id]: {
+                      ...(prev[activeBaby.id] || {}),
+                      [activity.id]: { isTiming: true, startTime: new Date().toISOString() }
+                  }
+              }));
+          }
+      } else if (activity.type === 'duration' && !activity.isTimer) {
+          // Open modal for duration input (like recording a past run/activity without a live timer)
+          setActiveActivity(activity);
+          setRecordValue(30); // Default 30 minutes
+          setShowValueModal(true);
+      }
     };
     
     const IconComponent = () => (
       <div className="text-4xl">{activity.icon}</div>
     );
 
+    const isDragged = draggedIndex === index;
+    const isDragOver = dragOverIndex === index;
+
     return (
-        <button 
-          onClick={handleAction}
-          className={`rounded-[2rem] p-5 flex flex-col items-center justify-center gap-3 aspect-square active:scale-95 duration-200 transition-all relative overflow-hidden ${
-            isTiming 
-                ? `${activity.color} text-white shadow-lg ${ringColorClass.replace('text-', 'ring-')} ring-4`
-                : `${baseColorClass} hover:${baseColorClass.replace('-50', '-100')} text-gray-700`
-          }`}
+        <div
+          data-activity-index={index}
+          draggable={!isTiming}
+          onDragStart={() => !isTiming && handleDragStart(index)}
+          onDragOver={(e) => !isTiming && handleDragOver(e, index)}
+          onDragEnd={handleDragEnd}
+          onTouchStart={(e) => !isTiming && handleTouchStart(e, index)}
+          onTouchEnd={(e) => handleTouchEnd(e)}
+          onTouchMove={(e) => !isTiming && handleTouchMove(e)}
+          onTouchCancel={(e) => {
+            if (longPressTimerRef.current) {
+              clearTimeout(longPressTimerRef.current);
+              longPressTimerRef.current = null;
+            }
+            if (isDragging) {
+              handleDragEnd();
+            }
+          }}
+          className={`transition-all duration-200 ${
+            isDragged ? 'opacity-50 scale-95 z-50' : ''
+          } ${isDragOver ? 'transform translate-y-2' : ''}`}
         >
-          <div className="relative z-10 flex flex-col items-center gap-2">
-            <IconComponent />
-            <span className="font-semibold text-base leading-tight mt-1">{activity.name}</span>
-            
-            {isTiming && (
-              <div className="bg-white/20 px-3 py-1 mt-1 rounded-full text-xs font-mono font-medium backdrop-blur-sm">
-                {formatDuration(elapsedMs)}
-              </div>
-            )}
-            
-            {(activity.type === 'count') && (
-                <span className="text-xs text-gray-500 font-medium mt-1">点击记录 {activity.unit}</span>
-            )}
-          </div>
-        </button>
+          <button 
+            onClick={handleAction}
+            className={`rounded-[2rem] p-5 flex flex-col items-center justify-center gap-3 aspect-square active:scale-95 duration-200 transition-all relative overflow-hidden w-full ${
+              isTiming 
+                  ? `${activity.color} text-white shadow-lg ${ringColorClass.replace('text-', 'ring-')} ring-4`
+                  : `${baseColorClass} hover:${baseColorClass.replace('-50', '-100')} text-gray-700`
+            } ${isDragging && !isDragged ? 'cursor-move' : ''}`}
+          >
+            <div className="relative z-10 flex flex-col items-center gap-2">
+              <IconComponent />
+              <span className="font-semibold text-base leading-tight mt-1">{activity.name}</span>
+              
+              {isTiming && (
+                <div className="bg-white/20 px-3 py-1 mt-1 rounded-full text-xs font-mono font-medium backdrop-blur-sm">
+                  {formatDuration(elapsedMs)}
+                </div>
+              )}
+              
+              {(activity.type === 'count') && (
+                  <span className="text-xs text-gray-500 font-medium mt-1">点击记录 {activity.unit}</span>
+              )}
+              
+              {isDragging && !isTiming && (
+                <span className="text-xs text-gray-400 mt-1">长按拖拽排序</span>
+              )}
+            </div>
+          </button>
+        </div>
     );
   };
   
@@ -1025,16 +1276,11 @@ const HomeScreen = ({
     setActiveActivity(null);
   };
   
-  // Filter active activities into categories for layout
-  const timerActivities = activeActivityTypes.filter(a => a.type === 'duration' && a.isTimer);
-  const quickCountActivities = activeActivityTypes.filter(a => a.type === 'count');
-  const valueActivities = activeActivityTypes.filter(a => a.type === 'value' || (a.type === 'duration' && !a.isTimer));
-
   return (
     <div className="pt-14 pb-24 px-5 space-y-6 animate-fade-in h-full overflow-y-auto no-scrollbar">
       {/* Header */}
       <div className="flex justify-between items-center">
-        {/* 标题更新为“今日记录” */}
+        {/* 标题更新为"今日记录" */}
         <h1 className="text-xl font-bold text-gray-800">今日记录</h1>
         <button 
            onClick={() => setShowBabyManager(true)}
@@ -1071,41 +1317,20 @@ const HomeScreen = ({
         </div>
       </div>
 
-      {/* Action Grid - Timer Activities */}
+      {/* Action Grid - All Activities (No Grouping) */}
       <div className="space-y-3">
-        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider">计时活动 ({timerActivities.length})</h2>
-        <div className="grid grid-cols-3 gap-4">
-            {timerActivities.map(activity => (
-                <TimerDisplay key={activity.id} activity={activity} />
-            ))}
-            {timerActivities.length === 0 && (
-                 <p className="text-xs text-gray-400 col-span-3 pt-2">暂无计时活动，请在设置中添加/显示。</p>
-            )}
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider">活动 ({activeActivityTypes.length})</h2>
+          {activeActivityTypes.length > 0 && (
+            <span className="text-xs text-gray-400">长按拖拽排序</span>
+          )}
         </div>
-      </div>
-
-      {/* Action Grid - Count Activities */}
-      <div className="space-y-3">
-        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider">快速记录 ({quickCountActivities.length})</h2>
         <div className="grid grid-cols-3 gap-4">
-            {quickCountActivities.map(activity => (
-                <TimerDisplay key={activity.id} activity={activity} />
+            {activeActivityTypes.map((activity, index) => (
+                <TimerDisplay key={activity.id} activity={activity} index={index} />
             ))}
-            {quickCountActivities.length === 0 && (
-                 <p className="text-xs text-gray-400 col-span-3 pt-2">暂无快速记录活动，请在设置中添加/显示。</p>
-            )}
-        </div>
-      </div>
-      
-      {/* Action Grid - Value/Duration Activities */}
-      <div className="space-y-3">
-        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider">数值输入 ({valueActivities.length})</h2>
-        <div className="grid grid-cols-3 gap-4">
-            {valueActivities.map(activity => (
-                <TimerDisplay key={activity.id} activity={activity} />
-            ))}
-            {valueActivities.length === 0 && (
-                 <p className="text-xs text-gray-400 col-span-3 pt-2">暂无数值输入活动，请在设置中添加/显示。</p>
+            {activeActivityTypes.length === 0 && (
+                 <p className="text-xs text-gray-400 col-span-3 pt-2">暂无活动，请在设置中添加/显示。</p>
             )}
         </div>
       </div>
@@ -1353,19 +1578,22 @@ const App = () => {
   const initialBabyId = 'default-anne';
   const INACTIVITY_TIME = 10000; // 10 seconds for inactivity trigger
   
-  // Data Migration Helper: Ensures baby objects have activityTypes and that each activity has 'isActive' and 'isHighlight'
+  // Data Migration Helper: Ensures baby objects have activityTypes and that each activity has 'isActive', 'isHighlight', and 'order'
   const initializeBabies = (savedBabies) => {
     return savedBabies.map(baby => {
         let activities = baby.activityTypes || [];
         if (activities.length === 0) {
             activities = DEFAULT_ACTIVITY_TYPES;
         } else {
-            // Migration check: Ensure all activities have the new isActive/isHighlight property
-            activities = activities.map(a => ({
+            // Migration check: Ensure all activities have the new isActive/isHighlight/order property
+            activities = activities.map((a, index) => ({
                 ...a,
                 isActive: a.isActive !== undefined ? a.isActive : true,
-                isHighlight: a.isHighlight !== undefined ? a.isHighlight : false
+                isHighlight: a.isHighlight !== undefined ? a.isHighlight : false,
+                order: a.order !== undefined ? a.order : index
             }));
+            // Sort by order to ensure correct display
+            activities.sort((a, b) => (a.order || 0) - (b.order || 0));
         }
         return { ...baby, activityTypes: activities };
     });
@@ -1428,6 +1656,26 @@ const App = () => {
   useEffect(() => { localStorage.setItem('baby_timer_states', JSON.stringify(timerStates)); }, [timerStates]);
   
   // --- Inactivity Timer Logic ---
+  // Helper to check if there are any records for highlighted activities
+  const hasHighlightRecords = useCallback(() => {
+      const highlightedActivities = (activeBaby.activityTypes || []).filter(a => a.isHighlight);
+      if (highlightedActivities.length === 0) return false;
+      
+      const activeTimers = timerStates[activeBaby.id] || {};
+      
+      // Check if any highlighted activity has records or is currently timing
+      return highlightedActivities.some(activity => {
+          // If currently timing, consider it as having data
+          const timer = activeTimers[activity.id];
+          if (activity.type === 'duration' && activity.isTimer && timer && timer.isTiming) {
+              return true;
+          }
+          // Check if there's a record
+          const lastRecord = getLastRecord(records, activeBaby.id, activity.id);
+          return !!lastRecord;
+      });
+  }, [activeBaby, records, timerStates]);
+
   const resetInactivityTimer = useCallback(() => {
       // Clear existing timer
       if (inactivityTimerRef.current) {
@@ -1437,13 +1685,14 @@ const App = () => {
       // If on 'home' tab and highlight modal is not already visible
       if (activeTab === 'home' && !showHighlightModal) {
           const hasHighlights = activeBaby.activityTypes?.some(a => a.isHighlight);
-          if (hasHighlights) {
+          // Only trigger timer if there are records (not just highlights)
+          if (hasHighlights && hasHighlightRecords()) {
               inactivityTimerRef.current = setTimeout(() => {
                   setShowHighlightModal(true);
               }, INACTIVITY_TIME);
           }
       }
-  }, [activeTab, showHighlightModal, activeBaby, INACTIVITY_TIME]);
+  }, [activeTab, showHighlightModal, activeBaby, INACTIVITY_TIME, hasHighlightRecords]);
 
 
   // Effect to manage global interaction listeners
