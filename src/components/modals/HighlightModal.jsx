@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { formatDurationChinese, formatElapsedChineseHMS } from '../../utils/formatUtils';
+import { Sparkles } from 'lucide-react';
+import { formatElapsedChinese, formatDurationChinese } from '../../utils/formatUtils';
 import { getLastRecord } from '../../utils/recordUtils';
 
 // New Highlight Modal Component - Full Screen Poster Design
-const HighlightModal = ({ isOpen, onClose, activeBaby, activeBabyActivities, records, timerStates }) => {
+const HighlightModal = ({ isOpen, onClose, activeBaby, activeBabyActivities, records, timerStates, showSeconds = false }) => {
     // 1. Filter highlighted activities (max 3)
     const highlightedActivities = useMemo(() => 
         (activeBabyActivities || []).filter(a => a.isHighlight).slice(0, 3), 
@@ -23,12 +24,13 @@ const HighlightModal = ({ isOpen, onClose, activeBaby, activeBabyActivities, rec
     }, [isOpen, highlightedActivities.length]);
 
     // 4. Calculate reminders (Rely on 'tick' for real-time recalculation)
+    // Filter out activities with no records
     const reminders = useMemo(() => {
         tick; // Depend on tick to force refresh every second
         
         const activeTimers = timerStates[activeBaby.id] || {};
         
-        return highlightedActivities.map(activity => {
+        const allReminders = highlightedActivities.map(activity => {
             const timer = activeTimers[activity.id];
             // Check if it's a duration timer and it's currently active
             const isTiming = activity.type === 'duration' && activity.isTimer && timer && timer.isTiming;
@@ -47,10 +49,10 @@ const HighlightModal = ({ isOpen, onClose, activeBaby, activeBabyActivities, rec
                 const lastRecord = getLastRecord(records, activeBaby.id, activity.id);
             
                 if (!lastRecord) {
-                    // Return object with hasNoRecord flag, but still include it in reminders
+                    // Return object with hasNoRecord flag
                     return { 
                         activity, 
-                        elapsedMs: 0, // Use 0 instead of null to ensure it's included
+                        elapsedMs: 0,
                         lastRecordDescription: '暂无记录', 
                         isTiming: false,
                         hasNoRecord: true,
@@ -91,12 +93,15 @@ const HighlightModal = ({ isOpen, onClose, activeBaby, activeBabyActivities, rec
                 lastRecordDescription,
                 isTiming,
                 hasNoRecord: false,
-                // Use H/M/S for running timers, H/M for elapsed time since last record
-                formattedTime: isTiming ? formatElapsedChineseHMS(displayTimeMs) : formatDurationChinese(displayTimeMs)
+                // Use formatElapsedChinese with showSeconds setting
+                formattedTime: formatElapsedChinese(displayTimeMs, showSeconds)
             };
         });
+        
+        // Filter out activities with no records
+        return allReminders.filter(reminder => !reminder.hasNoRecord);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [highlightedActivities, records, activeBaby.id, timerStates, tick]); 
+    }, [highlightedActivities, records, activeBaby.id, timerStates, tick, showSeconds]); 
 
     // Handle click to close - close on any click
     const handleClick = () => {
@@ -107,8 +112,23 @@ const HighlightModal = ({ isOpen, onClose, activeBaby, activeBabyActivities, rec
         return null;
     }
     
-    // Ensure all highlighted activities are shown, even if they have no records
-    // The reminders array should already contain all activities (with hasNoRecord flag for those without records)
+    // If all highlighted activities have no records, show default message
+    if (reminders.length === 0) {
+        return (
+            <div 
+                className="fixed inset-0 z-[200] bg-white flex items-center justify-center p-0 animate-fade-in cursor-pointer"
+                onClick={handleClick}
+                style={{ backgroundColor: '#FFFFFF' }}
+            >
+                <div className="flex flex-col items-center justify-center gap-6">
+                    <Sparkles size={120} className="text-yellow-500" strokeWidth={1.5} />
+                    <div className="text-4xl sm:text-5xl font-bold text-gray-800">
+                        记录一下吧！
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     // Get high contrast color based on activity color
     const getHighContrastColor = (colorClass) => {
@@ -158,7 +178,6 @@ const HighlightModal = ({ isOpen, onClose, activeBaby, activeBabyActivities, rec
                 {reminders.map((reminder, index) => {
                     const timeParts = parseTimeDisplay(reminder.formattedTime);
                     const activityColor = getHighContrastColor(reminder.activity.color.replace('bg-', 'text-'));
-                    const isNoRecord = reminder.hasNoRecord;
                     const isLast = index === reminders.length - 1;
                     
                     return (
@@ -188,60 +207,45 @@ const HighlightModal = ({ isOpen, onClose, activeBaby, activeBabyActivities, rec
 
                             {/* Time Display */}
                             <div className="text-center">
-                                {isNoRecord ? (
-                                    <div 
-                                        className="text-8xl sm:text-[10rem] font-black leading-none tracking-tighter"
-                                        style={{ 
-                                            color: activityColor,
-                                            fontFamily: 'system-ui, -apple-system, sans-serif',
-                                            fontWeight: 900
-                                        }}
-                                    >
-                                        暂无记录
-                                    </div>
-                                ) : (
-                                    <div className="flex flex-wrap items-baseline justify-center gap-3 sm:gap-5">
-                                        {timeParts.map((part, i) => (
-                                            <div key={i} className="flex items-baseline gap-2 sm:gap-3">
+                                <div className="flex flex-wrap items-baseline justify-center gap-3 sm:gap-5">
+                                    {timeParts.map((part, i) => (
+                                        <div key={i} className="flex items-baseline gap-2 sm:gap-3">
+                                            <span 
+                                                className="text-8xl sm:text-[10rem] font-black leading-none tracking-tighter"
+                                                style={{ 
+                                                    color: activityColor,
+                                                    fontFamily: 'system-ui, -apple-system, sans-serif',
+                                                    fontWeight: 900,
+                                                    letterSpacing: '-0.05em'
+                                                }}
+                                            >
+                                                {part.value}
+                                            </span>
+                                            {part.unit && (
                                                 <span 
-                                                    className="text-8xl sm:text-[10rem] font-black leading-none tracking-tighter"
+                                                    className="text-4xl sm:text-6xl font-bold"
                                                     style={{ 
                                                         color: activityColor,
-                                                        fontFamily: 'system-ui, -apple-system, sans-serif',
-                                                        fontWeight: 900,
-                                                        letterSpacing: '-0.05em'
+                                                        letterSpacing: '0.05em'
                                                     }}
                                                 >
-                                                    {part.value}
+                                                    {part.unit}
                                                 </span>
-                                                {part.unit && (
-                                                    <span 
-                                                        className="text-4xl sm:text-6xl font-bold"
-                                                        style={{ 
-                                                            color: activityColor,
-                                                            letterSpacing: '0.05em'
-                                                        }}
-                                                    >
-                                                        {part.unit}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
 
                             {/* Description */}
-                            {!isNoRecord && (
-                                <div 
-                                    className="text-xl sm:text-2xl font-medium mt-4 sm:mt-6 opacity-50 text-black"
-                                >
-                                    {reminder.isTiming 
-                                        ? '实时计时中' 
-                                        : `上次：${reminder.lastRecordDescription}`
-                                    }
-                                </div>
-                            )}
+                            <div 
+                                className="text-xl sm:text-2xl font-medium mt-4 sm:mt-6 opacity-50 text-black"
+                            >
+                                {reminder.isTiming 
+                                    ? '实时计时中' 
+                                    : `上次：${reminder.lastRecordDescription}`
+                                }
+                            </div>
                         </div>
                     );
                 })}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react';
 import { Check, Baby } from 'lucide-react';
 import Modal from '../common/Modal';
 import NumberSelector from '../ui/NumberSelector';
@@ -41,12 +41,14 @@ const getColorValue = (colorClass, shade) => {
 const TimerDisplay = memo(({ 
   activity, 
   index, 
+  originalIndex,  // Original index in base array for drag state detection
   timerStates, 
   setTimerStates, 
   activeBabyId,
   isDragging,
   draggedIndex,
   dragOverIndex,
+  shouldShowPreview,  // Whether to show preview animation after delay
   onDragStart,
   onDragOver,
   onDragEnd,
@@ -211,32 +213,43 @@ const TimerDisplay = memo(({
     </div>
   );
 
-  const isDragged = draggedIndex === index;
-  const isDragOver = dragOverIndex === index;
+  // Use the originalIndex prop passed from parent
+  const isDragged = draggedIndex === originalIndex;
+  const isDragOver = dragOverIndex === originalIndex;
 
   return (
     <div
-      data-activity-index={index}
+      data-activity-index={originalIndex}
       draggable={!isTiming}
-      onDragStart={() => !isTiming && onDragStart(index)}
-      onDragOver={(e) => !isTiming && onDragOver(e, index)}
+      onDragStart={() => !isTiming && onDragStart(originalIndex)}
+      onDragOver={(e) => !isTiming && onDragOver(e, originalIndex)}
       onDragEnd={onDragEnd}
-      onTouchStart={(e) => !isTiming && onTouchStart(e, index)}
+      onTouchStart={(e) => !isTiming && onTouchStart(e, originalIndex)}
       onTouchEnd={onTouchEnd}
       onTouchMove={(e) => !isTiming && onTouchMove(e)}
       onTouchCancel={onTouchCancel}
-      className={`transition-all duration-200 min-w-[240px] ${
+      className={`min-w-[120px] md:min-w-[180px] lg:min-w-[200px] select-none ${
         isDragged ? 'opacity-50 scale-95 z-50' : ''
       } ${isDragOver ? 'transform translate-y-2' : ''}`}
+      style={{ 
+        userSelect: 'none', 
+        WebkitUserSelect: 'none',
+        transition: isDragging && !isDragged && shouldShowPreview
+          ? 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)' 
+          : 'transform 0.2s ease, opacity 0.2s ease',
+        willChange: isDragging && !isDragged && shouldShowPreview ? 'transform' : 'auto'
+      }}
     >
       <button 
         onClick={handleAction}
-        className={`rounded-[2rem] p-5 flex flex-col items-center justify-center gap-3 aspect-[4/3] transition-all duration-300 relative overflow-visible w-full ${
+        className={`rounded-[2rem] p-5 flex flex-col items-center justify-center gap-3 aspect-[4/3] transition-all duration-300 relative overflow-visible w-full select-none ${
           isTiming 
             ? `${activity.color} text-white shadow-lg ${ringColorClass.replace('text-', 'ring-')} ring-4`
             : `${baseColorClass} text-gray-700 hover:${hoverColorClass} hover:shadow-sm hover:ring-2 ${ringColorClass.replace('text-', 'ring-')}`
         } ${isDragging && !isDragged ? 'cursor-move' : ''}`}
         style={{
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
           ...(isClicked && !isTiming ? {
             backgroundColor: activeColorValue,
             color: 'white',
@@ -277,7 +290,8 @@ TimerDisplay.displayName = 'TimerDisplay';
 const HomeScreen = ({ 
     activeBaby, activeBabyActivities, timerStates, setTimerStates, 
     onAddRecord, onStopTimer, 
-    setShowHighlightModal
+    setShowHighlightModal,
+    onUpdateBabyActivityConfigs
 }) => {
   const [showValueModal, setShowValueModal] = useState(false);
   
@@ -286,14 +300,19 @@ const HomeScreen = ({
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [shouldShowPreview, setShouldShowPreview] = useState(false); // Whether to show preview animation after delay
   const [flyoutData, setFlyoutData] = useState(null); // { activityId, text }
   const longPressTimerRef = useRef(null);
+  const dragOverTimerRef = useRef(null);
 
-  // Cleanup long press timer on unmount
+  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
       if (longPressTimerRef.current) {
         clearTimeout(longPressTimerRef.current);
+      }
+      if (dragOverTimerRef.current) {
+        clearTimeout(dragOverTimerRef.current);
       }
     };
   }, []);
@@ -301,50 +320,144 @@ const HomeScreen = ({
   const ageText = formatAge(activeBaby.startDate);
   
   // Filter activities based on the isActive flag and sort by order
-  const activeActivityTypes = activeBabyActivities
-    .filter(a => a.isActive)
-    .sort((a, b) => (a.order || 0) - (b.order || 0));
+  const baseActiveActivityTypes = useMemo(() => {
+    return activeBabyActivities
+      .filter(a => a.isActive)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+  }, [activeBabyActivities]);
+  
+  // Calculate preview order during drag (only after 0.8s delay)
+  const activeActivityTypes = useMemo(() => {
+    if (!isDragging || draggedIndex === null || dragOverIndex === null || draggedIndex === dragOverIndex || !shouldShowPreview) {
+      return baseActiveActivityTypes;
+    }
+    
+    // Create a preview array with the dragged item moved to the new position
+    const preview = [...baseActiveActivityTypes];
+    const [removed] = preview.splice(draggedIndex, 1);
+    preview.splice(dragOverIndex, 0, removed);
+    return preview;
+  }, [baseActiveActivityTypes, isDragging, draggedIndex, dragOverIndex, shouldShowPreview]);
 
   // Handle drag and drop for activity reordering
   const handleDragStart = (index) => {
     setDraggedIndex(index);
     setIsDragging(true);
+    setShouldShowPreview(false); // Reset preview state when starting drag
+    // Clear any existing drag over timer
+    if (dragOverTimerRef.current) {
+      clearTimeout(dragOverTimerRef.current);
+      dragOverTimerRef.current = null;
+    }
   };
 
   const handleDragOver = (e, index) => {
     e.preventDefault();
     if (draggedIndex !== null && draggedIndex !== index) {
-      setDragOverIndex(index);
+      // Only update if targetIndex actually changed
+      if (index !== dragOverIndex) {
+        // Clear previous timer if dragOverIndex changes
+        if (dragOverTimerRef.current) {
+          clearTimeout(dragOverTimerRef.current);
+          dragOverTimerRef.current = null;
+        }
+        
+        // Reset preview state when hovering over a new position
+        setShouldShowPreview(false);
+        setDragOverIndex(index);
+        
+        // Start 0.8s delay timer before showing preview
+        dragOverTimerRef.current = setTimeout(() => {
+          setShouldShowPreview(true);
+          dragOverTimerRef.current = null;
+        }, 800);
+      }
     }
   };
 
   const handleDragEnd = () => {
+    // Clear drag over timer
+    if (dragOverTimerRef.current) {
+      clearTimeout(dragOverTimerRef.current);
+      dragOverTimerRef.current = null;
+    }
+    
     if (draggedIndex !== null && dragOverIndex !== null && draggedIndex !== dragOverIndex) {
-      const newActivities = [...activeActivityTypes];
+      // Calculate new order regardless of shouldShowPreview state
+      // This ensures the order is saved even if user didn't wait for preview
+      const newActivities = [...baseActiveActivityTypes];
       const [removed] = newActivities.splice(draggedIndex, 1);
       newActivities.splice(dragOverIndex, 0, removed);
       
-      // Note: Reordering is now handled in settings screen
-      // This drag-and-drop functionality can be kept for future enhancement
-      // For now, we'll just prevent the reorder action
+      // Get all activity configs (including inactive ones)
+      const allConfigs = [...(activeBaby.activityConfigs || [])];
+      
+      // Create a map of activityId to config for quick lookup
+      const configMap = new Map(allConfigs.map(config => [config.activityId, config]));
+      
+      // Get set of active activity IDs for quick lookup
+      const activeActivityIds = new Set(newActivities.map(a => a.id));
+      
+      // Update order for active activities based on new order
+      newActivities.forEach((activity, newIndex) => {
+        const config = configMap.get(activity.id);
+        if (config) {
+          config.order = newIndex;
+        }
+      });
+      
+      // Update order for inactive activities (place them after active ones)
+      // Keep their relative order by sorting by current order first
+      const inactiveConfigs = allConfigs
+        .filter(config => !activeActivityIds.has(config.activityId))
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
+      
+      inactiveConfigs.forEach((config, index) => {
+        config.order = newActivities.length + index;
+      });
+      
+      // Create final array with all configs in correct order
+      const reorderedConfigs = [
+        ...newActivities.map(activity => configMap.get(activity.id)).filter(Boolean),
+        ...inactiveConfigs
+      ];
+      
+      // Update the baby's activity configs
+      if (onUpdateBabyActivityConfigs) {
+        onUpdateBabyActivityConfigs(activeBaby.id, reorderedConfigs);
+      }
     }
     
     setDraggedIndex(null);
     setDragOverIndex(null);
     setIsDragging(false);
+    setShouldShowPreview(false); // Reset preview state
   };
 
   // Handle long press for mobile drag
   const handleTouchStart = (e, index) => {
+    // Store the event for later use
+    const touchEvent = e;
     longPressTimerRef.current = setTimeout(() => {
       handleDragStart(index);
       setIsDragging(true);
-      // Add haptic feedback if available
-      if (navigator.vibrate) {
-        navigator.vibrate(50);
+      // Prevent text selection when long press is triggered
+      // Only prevent default if the event is still valid
+      if (touchEvent && touchEvent.cancelable) {
+        try {
+          touchEvent.preventDefault();
+        } catch (err) {
+          // Ignore if preventDefault fails (e.g., event already handled)
+        }
       }
-      // Prevent default to avoid scrolling
-      e.preventDefault();
+      // Add haptic feedback if available and user has interacted
+      try {
+        if (navigator.vibrate && typeof navigator.vibrate === 'function') {
+          navigator.vibrate(50);
+        }
+      } catch (err) {
+        // Ignore vibration errors
+      }
     }, 500); // 500ms long press
   };
 
@@ -369,7 +482,24 @@ const HomeScreen = ({
         if (activityElement) {
           const targetIndex = parseInt(activityElement.getAttribute('data-activity-index'));
           if (!isNaN(targetIndex) && targetIndex !== draggedIndex) {
-            setDragOverIndex(targetIndex);
+            // Only update if targetIndex actually changed
+            if (targetIndex !== dragOverIndex) {
+              // Clear previous timer if dragOverIndex changes
+              if (dragOverTimerRef.current) {
+                clearTimeout(dragOverTimerRef.current);
+                dragOverTimerRef.current = null;
+              }
+              
+              // Reset preview state when hovering over a new position
+              setShouldShowPreview(false);
+              setDragOverIndex(targetIndex);
+              
+              // Start 0.8s delay timer before showing preview
+              dragOverTimerRef.current = setTimeout(() => {
+                setShouldShowPreview(true);
+                dragOverTimerRef.current = null;
+              }, 800);
+            }
           }
         }
       }
@@ -380,6 +510,10 @@ const HomeScreen = ({
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
+    }
+    if (dragOverTimerRef.current) {
+      clearTimeout(dragOverTimerRef.current);
+      dragOverTimerRef.current = null;
     }
     if (isDragging) {
       handleDragEnd();
@@ -466,18 +600,23 @@ const HomeScreen = ({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-5 lg:gap-6">
-            {activeActivityTypes.map((activity, index) => (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6 lg:gap-8">
+            {activeActivityTypes.map((activity, index) => {
+              // Find original index in base array
+              const originalIndex = baseActiveActivityTypes.findIndex(a => a.id === activity.id);
+              return (
                 <TimerDisplay 
                   key={activity.id} 
                   activity={activity} 
                   index={index}
+                  originalIndex={originalIndex}
                   timerStates={timerStates}
                   setTimerStates={setTimerStates}
                   activeBabyId={activeBaby.id}
                   isDragging={isDragging}
                   draggedIndex={draggedIndex}
                   dragOverIndex={dragOverIndex}
+                  shouldShowPreview={shouldShowPreview}
                   onDragStart={handleDragStart}
                   onDragOver={handleDragOver}
                   onDragEnd={handleDragEnd}
@@ -491,9 +630,10 @@ const HomeScreen = ({
                   flyoutData={flyoutData}
                   onClearFlyout={handleClearFlyout}
                 />
-            ))}
+              );
+            })}
             {activeActivityTypes.length === 0 && (
-                 <p className="text-xs text-gray-400 col-span-2 md:col-span-4 lg:col-span-5 xl:col-span-6 pt-2">暂无活动，请在设置中添加/显示。</p>
+                 <p className="text-xs text-gray-400 col-span-2 md:col-span-3 lg:col-span-4 xl:col-span-5 pt-2">暂无活动，请在设置中添加/显示。</p>
             )}
         </div>
       </div>

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { User, Plus, Edit3, Trash2, ChevronRight, BookOpen, Activity } from 'lucide-react';
+import { User, Plus, Edit3, Trash2, ChevronRight, BookOpen, Activity, Star } from 'lucide-react';
 import { calculateDaysOld } from '../../utils/dateUtils';
 import BabyActivityConfigScreen from './BabyActivityConfigScreen';
 import GlobalActivityManagerScreen from './GlobalActivityManagerScreen';
 import BabyEditScreen from './BabyEditScreen';
+import HighlightSettingsScreen from './HighlightSettingsScreen';
 
 const SettingsScreen = ({
   babies,
@@ -17,9 +18,11 @@ const SettingsScreen = ({
   onAddActivity,
   onUpdateActivity,
   onDeleteActivity,
-  getBabyActivities
+  getBabyActivities,
+  highlightShowSeconds,
+  onToggleHighlightShowSeconds
 }) => {
-  const [view, setView] = useState('main'); // 'main', 'baby-config', 'activity-manager', 'baby-edit'
+  const [view, setView] = useState('main'); // 'main', 'baby-config', 'activity-manager', 'baby-edit', 'highlight-settings'
   const [selectedBabyId, setSelectedBabyId] = useState(null);
 
   // Account Management (Placeholder)
@@ -60,6 +63,11 @@ const SettingsScreen = ({
   // Activity Management
   const handleActivityManager = () => {
     setView('activity-manager');
+  };
+
+  // Highlight Settings
+  const handleHighlightSettings = () => {
+    setView('highlight-settings');
   };
 
   // Navigation back
@@ -175,6 +183,25 @@ const SettingsScreen = ({
             <ChevronRight size={20} className="text-gray-400" />
           </div>
         </div>
+
+        {/* Highlight Settings */}
+        <div className="bg-white rounded-[2rem] p-5 shadow-sm border border-gray-50">
+          <div
+            onClick={handleHighlightSettings}
+            className="flex items-center justify-between cursor-pointer active:scale-[0.99] transition-transform"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-yellow-50 rounded-full flex items-center justify-center">
+                <Star size={24} className="text-yellow-500" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-gray-800">Highlight 设置</h2>
+                <p className="text-xs text-gray-500">计时器显示设置</p>
+              </div>
+            </div>
+            <ChevronRight size={20} className="text-gray-400" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -225,6 +252,17 @@ const SettingsScreen = ({
         onAddActivity={onAddActivity}
         onUpdateActivity={onUpdateActivity}
         onDeleteActivity={onDeleteActivity}
+      />
+    );
+  }
+
+  // Highlight Settings View
+  if (view === 'highlight-settings') {
+    return (
+      <HighlightSettingsScreen
+        onBack={handleBack}
+        showSeconds={highlightShowSeconds}
+        onToggleShowSeconds={onToggleHighlightShowSeconds}
       />
     );
   }

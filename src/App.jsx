@@ -95,7 +95,7 @@ const App = () => {
     
     const defaultBaby = [{ 
       id: initialBabyId, 
-      name: '点点 (默认本)', 
+      name: '点点', 
       startDate: formatDateKey(new Date(Date.now() - 108 * 24 * 60 * 60 * 1000)),
       icon: '👶',
       color: 'bg-orange-100',
@@ -139,6 +139,12 @@ const App = () => {
   // New State for Highlight Modal
   const [showHighlightModal, setShowHighlightModal] = useState(false);
   const inactivityTimerRef = useRef(null);
+  
+  // Highlight Settings State
+  const [highlightShowSeconds, setHighlightShowSeconds] = useState(() => {
+    const saved = localStorage.getItem('baby_highlight_show_seconds');
+    return saved === 'true';
+  });
 
   // Get active baby object
   const activeBaby = useMemo(() => babies.find(b => b.id === activeBabyId) || babies[0], [babies, activeBabyId]);
@@ -173,6 +179,7 @@ const App = () => {
   useEffect(() => { localStorage.setItem('baby_active_baby_id', activeBabyId); }, [activeBabyId]);
   useEffect(() => { localStorage.setItem('baby_records', JSON.stringify(records)); }, [records]);
   useEffect(() => { localStorage.setItem('baby_timer_states', JSON.stringify(timerStates)); }, [timerStates]);
+  useEffect(() => { localStorage.setItem('baby_highlight_show_seconds', highlightShowSeconds.toString()); }, [highlightShowSeconds]);
   
   // --- Inactivity Timer Logic ---
   // Helper to check if there are any records for highlighted activities
@@ -400,7 +407,7 @@ const App = () => {
 
   return (
     <div className="bg-gray-100 min-h-screen flex justify-center items-start font-sans selection:bg-blue-100">
-      <div className="w-full h-[100vh] bg-[#F7F8FA] relative overflow-hidden flex flex-col md:max-w-[600px] lg:max-w-[800px] md:rounded-3xl md:shadow-xl md:mt-8 md:mb-8 md:h-auto md:min-h-[calc(100vh-4rem)]">
+      <div className="w-full h-[100vh] bg-[#F7F8FA] relative overflow-hidden flex flex-col md:max-w-[800px] lg:max-w-[1200px]">
 
         <div className="flex-1 overflow-hidden relative">
           {activeTab === 'home' && (
@@ -412,6 +419,7 @@ const App = () => {
                 onAddRecord={addRecord}
                 onStopTimer={stopTimer}
                 setShowHighlightModal={setShowHighlightModal}
+                onUpdateBabyActivityConfigs={updateBabyActivityConfigs}
             />
           )}
           {activeTab === 'records' && (
@@ -443,6 +451,8 @@ const App = () => {
                 onUpdateActivity={updateActivity}
                 onDeleteActivity={deleteActivity}
                 getBabyActivities={getBabyActivities}
+                highlightShowSeconds={highlightShowSeconds}
+                onToggleHighlightShowSeconds={() => setHighlightShowSeconds(prev => !prev)}
             />
           )}
         </div>
@@ -458,6 +468,7 @@ const App = () => {
         activeBabyActivities={activeBabyActivities}
         records={records}
         timerStates={timerStates}
+        showSeconds={highlightShowSeconds}
       />
       
       <style>{`
@@ -519,6 +530,17 @@ const App = () => {
         }
         .animate-flyout-up {
             animation: flyout-up 0.3s ease-out forwards;
+        }
+
+        /* Smooth grid item transition for drag and drop */
+        .grid > * {
+            transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1), 
+                       opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* Optimize grid layout for smooth transitions */
+        .grid {
+            contain: layout;
         }
 
         /* Basic Tailwind Color Mappings for dynamic buttons */

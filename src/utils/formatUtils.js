@@ -5,12 +5,11 @@ export const formatDuration = (ms) => {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
   
-  const parts = [
-      hours > 0 ? `${hours}:` : '',
-      minutes.toString().padStart(hours > 0 ? 2 : 1, '0'),
-      seconds.toString().padStart(2, '0')
-  ];
-  return parts.join(':');
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  } else {
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  }
 };
 
 /**
@@ -59,5 +58,48 @@ export const formatElapsedChineseHMS = (ms) => {
     result += `${seconds}秒`;
     
     return result;
+};
+
+/**
+ * 格式化毫秒为中文经过时间（仅显示小时/分钟，不显示秒）
+ * 用于Highlight页面当showSeconds为false时
+ */
+export const formatElapsedChineseHM = (ms) => {
+    if (ms === null || ms === undefined || ms < 0) return '未知时间';
+    
+    const totalMinutes = Math.floor(ms / 60000);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    let result = '';
+    if (hours > 0) {
+        result += `${hours}小时`;
+    }
+    // Always show minutes (even if 0 when hours > 0, or show 0 if less than 1 minute)
+    if (hours > 0) {
+        result += `${minutes}分钟`;
+    } else if (minutes > 0) {
+        result += `${minutes}分钟`;
+    } else {
+        result += '0分钟';
+    }
+    
+    return result;
+};
+
+/**
+ * 格式化毫秒为中文经过时间，根据showSeconds参数决定是否显示秒
+ * @param {number} ms - 毫秒数
+ * @param {boolean} showSeconds - 是否显示秒
+ * @returns {string} 格式化后的时间字符串
+ */
+export const formatElapsedChinese = (ms, showSeconds = false) => {
+    if (ms === null || ms === undefined || ms < 0) return '未知时间';
+    
+    if (showSeconds) {
+        return formatElapsedChineseHMS(ms);
+    } else {
+        return formatElapsedChineseHM(ms);
+    }
 };
 
