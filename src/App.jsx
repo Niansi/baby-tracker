@@ -532,16 +532,6 @@ const App = () => {
             animation: flyout-up 0.3s ease-out forwards;
         }
 
-        /* Smooth grid item transition for drag and drop */
-        .grid > * {
-            transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1), 
-                       opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        /* Optimize grid layout for smooth transitions */
-        .grid {
-            contain: layout;
-        }
 
         /* Basic Tailwind Color Mappings for dynamic buttons */
         .bg-blue-600 { background-color: #2563EB; }
@@ -552,6 +542,7 @@ const App = () => {
         .bg-red-600 { background-color: #DC2626; }
         .bg-yellow-600 { background-color: #CA8A04; }
         .bg-pink-600 { background-color: #EC4899; }
+        .bg-gray-600 { background-color: #4B5563; }
         .bg-gray-700 { background-color: #374151; }
 
         .text-blue-600 { color: #2563EB; }
@@ -567,10 +558,12 @@ const App = () => {
         .ring-indigo-600 { --tw-ring-color: #4F46E5; }
         .ring-purple-600 { --tw-ring-color: #7C3AED; }
         .ring-amber-600 { --tw-ring-color: #D97706; }
+        .ring-orange-600 { --tw-ring-color: #D97706; }
         .ring-yellow-600 { --tw-ring-color: #CA8A04; }
         .ring-gray-600 { --tw-ring-color: #4B5563; }
         .ring-red-600 { --tw-ring-color: #DC2626; }
         .ring-green-600 { --tw-ring-color: #059669; }
+        .ring-pink-600 { --tw-ring-color: #EC4899; }
         
         .bg-blue-50 { background-color: #EFF6FF; }
         .bg-indigo-50 { background-color: #EEF2FF; }
@@ -585,10 +578,12 @@ const App = () => {
         .bg-indigo-100 { background-color: #E0E7FF; }
         .bg-purple-100 { background-color: #EDE9FE; }
         .bg-amber-100 { background-color: #FEF3C7; }
+        .bg-orange-100 { background-color: #FFEDD5; }
         .bg-yellow-100 { background-color: #FEF9C3; }
         .bg-gray-100 { background-color: #F3F4F6; }
         .bg-red-100 { background-color: #FEE2E2; }
         .bg-green-100 { background-color: #D1FAE5; }
+        .bg-pink-100 { background-color: #FCE7F3; }
         
         .bg-blue-200 { background-color: #BFDBFE; }
         .bg-indigo-200 { background-color: #C7D2FE; }
@@ -600,6 +595,15 @@ const App = () => {
         .bg-green-200 { background-color: #A7F3D0; }
         .bg-pink-200 { background-color: #FBCFE8; }
         .bg-orange-200 { background-color: #FED7AA; }
+        
+        .bg-blue-400 { background-color: #60A5FA; }
+        .bg-purple-400 { background-color: #A78BFA; }
+        .bg-orange-400 { background-color: #FB923C; }
+        .bg-green-400 { background-color: #4ADE80; }
+        .bg-red-400 { background-color: #F87171; }
+        .bg-yellow-400 { background-color: #FACC15; }
+        .bg-pink-400 { background-color: #F472B6; }
+        .bg-gray-400 { background-color: #9CA3AF; }
 
 
       `}</style>
