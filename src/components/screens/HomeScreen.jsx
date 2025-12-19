@@ -41,21 +41,9 @@ const getColorValue = (colorClass, shade) => {
 const TimerDisplay = memo(({ 
   activity, 
   index, 
-  originalIndex,  // Original index in base array for drag state detection
   timerStates, 
   setTimerStates, 
   activeBabyId,
-  isDragging,
-  draggedIndex,
-  dragOverIndex,
-  shouldShowPreview,  // Whether to show preview animation after delay
-  onDragStart,
-  onDragOver,
-  onDragEnd,
-  onTouchStart,
-  onTouchEnd,
-  onTouchMove,
-  onTouchCancel,
   onAddRecord,
   onStopTimer,
   onOpenValueModal,
@@ -137,12 +125,6 @@ const TimerDisplay = memo(({
   const isDurationTimer = activity.type === 'duration' && activity.isTimer;
 
   const handleAction = (e) => {
-    // Don't trigger action if we're dragging
-    if (isDragging) {
-      e.preventDefault();
-      return;
-    }
-    
     // Trigger click animation immediately for all non-timing activities
     if (!isTiming) {
       // Clear any existing timeout
@@ -213,32 +195,9 @@ const TimerDisplay = memo(({
     </div>
   );
 
-  // Use the originalIndex prop passed from parent
-  const isDragged = draggedIndex === originalIndex;
-  const isDragOver = dragOverIndex === originalIndex;
-
   return (
     <div
-      data-activity-index={originalIndex}
-      draggable={!isTiming}
-      onDragStart={() => !isTiming && onDragStart(originalIndex)}
-      onDragOver={(e) => !isTiming && onDragOver(e, originalIndex)}
-      onDragEnd={onDragEnd}
-      onTouchStart={(e) => !isTiming && onTouchStart(e, originalIndex)}
-      onTouchEnd={onTouchEnd}
-      onTouchMove={(e) => !isTiming && onTouchMove(e)}
-      onTouchCancel={onTouchCancel}
-      className={`min-w-[120px] md:min-w-[180px] lg:min-w-[200px] select-none ${
-        isDragged ? 'opacity-50 scale-95 z-50' : ''
-      } ${isDragOver ? 'transform translate-y-2' : ''}`}
-      style={{ 
-        userSelect: 'none', 
-        WebkitUserSelect: 'none',
-        transition: isDragging && !isDragged && shouldShowPreview
-          ? 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)' 
-          : 'transform 0.2s ease, opacity 0.2s ease',
-        willChange: isDragging && !isDragged && shouldShowPreview ? 'transform' : 'auto'
-      }}
+      className="min-w-[120px] md:min-w-[180px] lg:min-w-[200px] select-none"
     >
       <button 
         onClick={handleAction}
@@ -246,7 +205,7 @@ const TimerDisplay = memo(({
           isTiming 
             ? `${activity.color} text-white shadow-lg ${ringColorClass.replace('text-', 'ring-')} ring-4`
             : `${baseColorClass} text-gray-700 hover:${hoverColorClass} hover:shadow-sm hover:ring-2 ${ringColorClass.replace('text-', 'ring-')}`
-        } ${isDragging && !isDragged ? 'cursor-move' : ''}`}
+        }`}
         style={{
           userSelect: 'none',
           WebkitUserSelect: 'none',
@@ -297,228 +256,17 @@ const HomeScreen = ({
   
   const [activeActivity, setActiveActivity] = useState(null); // The activity being recorded (value type)
   const [recordValue, setRecordValue] = useState(60); 
-  const [draggedIndex, setDraggedIndex] = useState(null);
-  const [dragOverIndex, setDragOverIndex] = useState(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [shouldShowPreview, setShouldShowPreview] = useState(false); // Whether to show preview animation after delay
   const [flyoutData, setFlyoutData] = useState(null); // { activityId, text }
-  const longPressTimerRef = useRef(null);
-  const dragOverTimerRef = useRef(null);
-
-  // Cleanup timers on unmount
-  useEffect(() => {
-    return () => {
-      if (longPressTimerRef.current) {
-        clearTimeout(longPressTimerRef.current);
-      }
-      if (dragOverTimerRef.current) {
-        clearTimeout(dragOverTimerRef.current);
-      }
-    };
-  }, []);
 
   const ageText = formatAge(activeBaby.startDate);
   
   // Filter activities based on the isActive flag and sort by order
-  const baseActiveActivityTypes = useMemo(() => {
+  const activeActivityTypes = useMemo(() => {
     return activeBabyActivities
       .filter(a => a.isActive)
       .sort((a, b) => (a.order || 0) - (b.order || 0));
   }, [activeBabyActivities]);
-  
-  // Calculate preview order during drag (only after 0.8s delay)
-  const activeActivityTypes = useMemo(() => {
-    if (!isDragging || draggedIndex === null || dragOverIndex === null || draggedIndex === dragOverIndex || !shouldShowPreview) {
-      return baseActiveActivityTypes;
-    }
-    
-    // Create a preview array with the dragged item moved to the new position
-    const preview = [...baseActiveActivityTypes];
-    const [removed] = preview.splice(draggedIndex, 1);
-    preview.splice(dragOverIndex, 0, removed);
-    return preview;
-  }, [baseActiveActivityTypes, isDragging, draggedIndex, dragOverIndex, shouldShowPreview]);
 
-  // Handle drag and drop for activity reordering
-  const handleDragStart = (index) => {
-    setDraggedIndex(index);
-    setIsDragging(true);
-    setShouldShowPreview(false); // Reset preview state when starting drag
-    // Clear any existing drag over timer
-    if (dragOverTimerRef.current) {
-      clearTimeout(dragOverTimerRef.current);
-      dragOverTimerRef.current = null;
-    }
-  };
-
-  const handleDragOver = (e, index) => {
-    e.preventDefault();
-    if (draggedIndex !== null && draggedIndex !== index) {
-      // Only update if targetIndex actually changed
-      if (index !== dragOverIndex) {
-        // Clear previous timer if dragOverIndex changes
-        if (dragOverTimerRef.current) {
-          clearTimeout(dragOverTimerRef.current);
-          dragOverTimerRef.current = null;
-        }
-        
-        // Reset preview state when hovering over a new position
-        setShouldShowPreview(false);
-        setDragOverIndex(index);
-        
-        // Start 0.8s delay timer before showing preview
-        dragOverTimerRef.current = setTimeout(() => {
-          setShouldShowPreview(true);
-          dragOverTimerRef.current = null;
-        }, 800);
-      }
-    }
-  };
-
-  const handleDragEnd = () => {
-    // Clear drag over timer
-    if (dragOverTimerRef.current) {
-      clearTimeout(dragOverTimerRef.current);
-      dragOverTimerRef.current = null;
-    }
-    
-    if (draggedIndex !== null && dragOverIndex !== null && draggedIndex !== dragOverIndex) {
-      // Calculate new order regardless of shouldShowPreview state
-      // This ensures the order is saved even if user didn't wait for preview
-      const newActivities = [...baseActiveActivityTypes];
-      const [removed] = newActivities.splice(draggedIndex, 1);
-      newActivities.splice(dragOverIndex, 0, removed);
-      
-      // Get all activity configs (including inactive ones)
-      const allConfigs = [...(activeBaby.activityConfigs || [])];
-      
-      // Create a map of activityId to config for quick lookup
-      const configMap = new Map(allConfigs.map(config => [config.activityId, config]));
-      
-      // Get set of active activity IDs for quick lookup
-      const activeActivityIds = new Set(newActivities.map(a => a.id));
-      
-      // Update order for active activities based on new order
-      newActivities.forEach((activity, newIndex) => {
-        const config = configMap.get(activity.id);
-        if (config) {
-          config.order = newIndex;
-        }
-      });
-      
-      // Update order for inactive activities (place them after active ones)
-      // Keep their relative order by sorting by current order first
-      const inactiveConfigs = allConfigs
-        .filter(config => !activeActivityIds.has(config.activityId))
-        .sort((a, b) => (a.order || 0) - (b.order || 0));
-      
-      inactiveConfigs.forEach((config, index) => {
-        config.order = newActivities.length + index;
-      });
-      
-      // Create final array with all configs in correct order
-      const reorderedConfigs = [
-        ...newActivities.map(activity => configMap.get(activity.id)).filter(Boolean),
-        ...inactiveConfigs
-      ];
-      
-      // Update the baby's activity configs
-      if (onUpdateBabyActivityConfigs) {
-        onUpdateBabyActivityConfigs(activeBaby.id, reorderedConfigs);
-      }
-    }
-    
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-    setIsDragging(false);
-    setShouldShowPreview(false); // Reset preview state
-  };
-
-  // Handle long press for mobile drag
-  const handleTouchStart = (e, index) => {
-    // Store the event for later use
-    const touchEvent = e;
-    longPressTimerRef.current = setTimeout(() => {
-      handleDragStart(index);
-      setIsDragging(true);
-      // Prevent text selection when long press is triggered
-      // Only prevent default if the event is still valid
-      if (touchEvent && touchEvent.cancelable) {
-        try {
-          touchEvent.preventDefault();
-        } catch (err) {
-          // Ignore if preventDefault fails (e.g., event already handled)
-        }
-      }
-      // Add haptic feedback if available and user has interacted
-      try {
-        if (navigator.vibrate && typeof navigator.vibrate === 'function') {
-          navigator.vibrate(50);
-        }
-      } catch (err) {
-        // Ignore vibration errors
-      }
-    }, 500); // 500ms long press
-  };
-
-  const handleTouchEnd = (e) => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-    if (isDragging) {
-      e.preventDefault();
-      handleDragEnd();
-    }
-  };
-
-  const handleTouchMove = (e) => {
-    if (isDragging && draggedIndex !== null) {
-      e.preventDefault(); // Prevent scrolling while dragging
-      const touch = e.touches[0];
-      const element = document.elementFromPoint(touch.clientX, touch.clientY);
-      if (element) {
-        const activityElement = element.closest('[data-activity-index]');
-        if (activityElement) {
-          const targetIndex = parseInt(activityElement.getAttribute('data-activity-index'));
-          if (!isNaN(targetIndex) && targetIndex !== draggedIndex) {
-            // Only update if targetIndex actually changed
-            if (targetIndex !== dragOverIndex) {
-              // Clear previous timer if dragOverIndex changes
-              if (dragOverTimerRef.current) {
-                clearTimeout(dragOverTimerRef.current);
-                dragOverTimerRef.current = null;
-              }
-              
-              // Reset preview state when hovering over a new position
-              setShouldShowPreview(false);
-              setDragOverIndex(targetIndex);
-              
-              // Start 0.8s delay timer before showing preview
-              dragOverTimerRef.current = setTimeout(() => {
-                setShouldShowPreview(true);
-                dragOverTimerRef.current = null;
-              }, 800);
-            }
-          }
-        }
-      }
-    }
-  };
-
-  const handleTouchCancel = useCallback(() => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-    if (dragOverTimerRef.current) {
-      clearTimeout(dragOverTimerRef.current);
-      dragOverTimerRef.current = null;
-    }
-    if (isDragging) {
-      handleDragEnd();
-    }
-  }, [isDragging]);
 
   // Callback for opening value modal from TimerDisplay
   const handleOpenValueModal = useCallback((activity, defaultValue) => {
@@ -602,28 +350,14 @@ const HomeScreen = ({
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6 lg:gap-8">
             {activeActivityTypes.map((activity, index) => {
-              // Find original index in base array
-              const originalIndex = baseActiveActivityTypes.findIndex(a => a.id === activity.id);
               return (
                 <TimerDisplay 
                   key={activity.id} 
                   activity={activity} 
                   index={index}
-                  originalIndex={originalIndex}
                   timerStates={timerStates}
                   setTimerStates={setTimerStates}
                   activeBabyId={activeBaby.id}
-                  isDragging={isDragging}
-                  draggedIndex={draggedIndex}
-                  dragOverIndex={dragOverIndex}
-                  shouldShowPreview={shouldShowPreview}
-                  onDragStart={handleDragStart}
-                  onDragOver={handleDragOver}
-                  onDragEnd={handleDragEnd}
-                  onTouchStart={handleTouchStart}
-                  onTouchEnd={handleTouchEnd}
-                  onTouchMove={handleTouchMove}
-                  onTouchCancel={handleTouchCancel}
                   onAddRecord={onAddRecord}
                   onStopTimer={onStopTimer}
                   onOpenValueModal={handleOpenValueModal}
