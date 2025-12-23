@@ -103,3 +103,33 @@ export const formatElapsedChinese = (ms, showSeconds = false) => {
     }
 };
 
+/**
+ * 从 Tailwind 颜色类名提取颜色值
+ * @param {string} colorClass - 颜色类名，如 'bg-blue-600'
+ * @returns {string} 颜色值，如 '#2563EB'
+ */
+export const getColorFromClass = (colorClass) => {
+  const colorMap = {
+    'blue': { 600: '#2563EB', 700: '#1D4ED8' },
+    'indigo': { 600: '#4F46E5', 700: '#4338CA' },
+    'purple': { 600: '#7C3AED', 700: '#6D28D9' },
+    'amber': { 600: '#D97706', 700: '#B45309' },
+    'yellow': { 600: '#CA8A04', 700: '#A16207' },
+    'gray': { 600: '#4B5563', 700: '#374151' },
+    'orange': { 600: '#D97706', 700: '#B45309' },
+    'green': { 600: '#059669', 700: '#047857' },
+    'red': { 600: '#DC2626', 700: '#B91C1C' },
+    'pink': { 600: '#EC4899', 700: '#BE185D' },
+  };
+  
+  // 提取颜色名和色阶
+  const match = colorClass.match(/bg-(\w+)-(\d+)/);
+  if (match) {
+    const colorName = match[1];
+    const shade = parseInt(match[2]);
+    return colorMap[colorName]?.[shade] || colorMap[colorName]?.[600] || '#2563EB';
+  }
+  
+  return '#2563EB'; // 默认颜色
+};
+

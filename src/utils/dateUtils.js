@@ -68,3 +68,50 @@ export const formatAge = (startDateStr) => {
     return parts.join('');
 };
 
+/**
+ * 获取最近N天的日期范围
+ * @param {number} days - 天数
+ * @returns {Object} { startDate: 'YYYY-MM-DD', endDate: 'YYYY-MM-DD' }
+ */
+export const getDateRange = (days) => {
+    const endDate = new Date();
+    endDate.setHours(23, 59, 59, 999);
+    
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - (days - 1));
+    startDate.setHours(0, 0, 0, 0);
+    
+    return {
+        startDate: formatDateKey(startDate),
+        endDate: formatDateKey(endDate)
+    };
+};
+
+/**
+ * 格式化日期显示（今天、昨天、具体日期）
+ * @param {string} dateStr - 日期字符串 (YYYY-MM-DD)
+ * @returns {string} 格式化后的日期显示
+ */
+export const formatDateDisplay = (dateStr) => {
+    if (!dateStr) return '';
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    const targetDate = new Date(dateStr);
+    targetDate.setHours(0, 0, 0, 0);
+    
+    if (targetDate.getTime() === today.getTime()) {
+        return '今天';
+    } else if (targetDate.getTime() === yesterday.getTime()) {
+        return '昨天';
+    } else {
+        const month = targetDate.getMonth() + 1;
+        const day = targetDate.getDate();
+        return `${month}月${day}日`;
+    }
+};
+
