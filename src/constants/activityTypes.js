@@ -10,11 +10,11 @@ export const CUSTOM_COLORS = [
 
 // 默认活动类型
 export const DEFAULT_ACTIVITY_TYPES = [
-    { id: 'a-feeding-bottle', name: '奶瓶喂养', type: 'value', unit: 'ml', icon: '🍼', color: 'bg-blue-600', isTimer: false, isActive: true, isHighlight: false, order: 0 },
+    { id: 'a-feeding-bottle', name: '奶瓶喂养', type: 'value', unit: 'ml', icon: '🍼', color: 'bg-blue-600', isTimer: false, isActive: true, isHighlight: true, order: 0 },
     { id: 'a-feeding-breast', name: '母乳亲喂', type: 'duration', unit: '分钟', icon: '🤱', color: 'bg-indigo-600', isTimer: true, isActive: true, isHighlight: false, order: 1 },
     { id: 'a-sleep', name: '睡觉', type: 'duration', unit: '分钟', icon: '🌙', color: 'bg-purple-600', isTimer: true, isActive: true, isHighlight: true, order: 2 }, // Default HL
     { id: 'a-poop', name: '臭臭', type: 'count', unit: '次', icon: '💩', color: 'bg-amber-600', isTimer: false, isActive: true, isHighlight: false, order: 3 },
     { id: 'a-diaper', name: '换尿片', type: 'count', unit: '次', icon: '🧷', color: 'bg-yellow-600', isTimer: false, isActive: true, isHighlight: false, order: 4 },
-    { id: 'a-smoke', name: '抽烟', type: 'count', unit: '次', icon: '🚬', color: 'bg-gray-600', isTimer: false, isActive: true, isHighlight: false, order: 5 },
+    // { id: 'a-smoke', name: '抽烟', type: 'count', unit: '次', icon: '🚬', color: 'bg-gray-600', isTimer: false, isActive: true, isHighlight: false, order: 5 },
 ];
 

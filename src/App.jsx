@@ -9,6 +9,76 @@ import { DEFAULT_ACTIVITY_TYPES, generateId } from './constants/activityTypes';
 import { formatDateKey } from './utils/dateUtils';
 import { getLastRecord } from './utils/recordUtils';
 
+// 生成测试数据
+const generateTestRecords = (babyId) => {
+  const records = [];
+  const now = new Date();
+  
+  // 生成过去30天的数据
+  for (let dayOffset = 0; dayOffset < 30; dayOffset++) {
+    const date = new Date(now);
+    date.setDate(date.getDate() - dayOffset);
+    date.setHours(0, 0, 0, 0);
+    
+    const dateKey = formatDateKey(date);
+    
+    // 每天生成不同数量的记录
+    const recordsPerDay = dayOffset < 7 ? Math.floor(Math.random() * 8) + 3 : Math.floor(Math.random() * 5) + 1;
+    
+    for (let i = 0; i < recordsPerDay; i++) {
+      // 随机选择活动类型
+      const activity = DEFAULT_ACTIVITY_TYPES[Math.floor(Math.random() * DEFAULT_ACTIVITY_TYPES.length)];
+      
+      // 随机时间（6:00 - 23:00）
+      const hour = Math.floor(Math.random() * 18) + 6;
+      const minute = Math.floor(Math.random() * 60);
+      const recordTime = new Date(date);
+      recordTime.setHours(hour, minute, 0, 0);
+      
+      const record = {
+        id: generateId(),
+        babyId: babyId,
+        activityTypeId: activity.id,
+        type: activity.type,
+        name: activity.name,
+        unit: activity.unit,
+        startTime: recordTime.toISOString(),
+        timestamp: recordTime.getTime()
+      };
+      
+      if (activity.type === 'count') {
+        record.value = 1;
+      } else if (activity.type === 'value') {
+        // 奶瓶喂养：60-180ml
+        record.value = Math.floor(Math.random() * 120) + 60;
+      } else if (activity.type === 'duration') {
+        if (activity.isTimer) {
+          // 计时类型：30-180分钟
+          const durationMinutes = Math.floor(Math.random() * 150) + 30;
+          record.duration = durationMinutes * 60000;
+          record.value = durationMinutes;
+          const endTime = new Date(recordTime);
+          endTime.setMinutes(endTime.getMinutes() + durationMinutes);
+          record.endTime = endTime.toISOString();
+        } else {
+          // 非计时类型：15-120分钟
+          const durationMinutes = Math.floor(Math.random() * 105) + 15;
+          record.duration = durationMinutes * 60000;
+          record.value = durationMinutes;
+          const endTime = new Date(recordTime);
+          endTime.setMinutes(endTime.getMinutes() + durationMinutes);
+          record.endTime = endTime.toISOString();
+        }
+      }
+      
+      records.push(record);
+    }
+  }
+  
+  // 按时间倒序排列
+  return records.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+};
+
 // Main App Component
 const App = () => {
   const initialBabyId = 'default-anne';
@@ -127,7 +197,22 @@ const App = () => {
   
   const [records, setRecords] = useState(() => {
     const saved = localStorage.getItem('baby_records');
-    return saved ? JSON.parse(saved) : [];
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // 如果已有记录，直接返回
+        if (parsed.length > 0) {
+          return parsed;
+        }
+      } catch (e) {
+        // 解析失败，继续生成测试数据
+      }
+    }
+    
+    // 生成测试数据（仅当没有保存的记录时）
+    // 用户可以通过清除 localStorage 中的 'baby_records' 来重新生成测试数据
+    const testRecords = generateTestRecords(initialBabyId);
+    return testRecords;
   });
   
   // Generalized Timer States: { babyId: { activityId: { isTiming, startTime } } }
@@ -435,6 +520,7 @@ const App = () => {
             <AnalysisScreen 
                 activeBaby={activeBaby}
                 activeBabyActivities={activeBabyActivities}
+                records={records}
             />
           )}
           {activeTab === 'settings' && (
@@ -532,6 +618,10 @@ const App = () => {
             animation: flyout-up 0.3s ease-out forwards;
         }
 
+        /* Grid columns for 24-hour heatmap */
+        .grid-cols-24 {
+            grid-template-columns: repeat(24, minmax(0, 1fr));
+        }
 
         /* Basic Tailwind Color Mappings for dynamic buttons */
         .bg-blue-600 { background-color: #2563EB; }
